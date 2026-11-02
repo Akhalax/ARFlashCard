@@ -372,6 +372,106 @@
                 }
             }
 
+            // === АВТОМАТИЧНЕ ВИРІВНЮВАННЯ ЗОБРАЖЕНЬ (як у проєкті flashcard) ===
+            // Зображення (площини з картинкою та коробки з текстурою) повертаються навколо
+            // нормалі маркера кроками по 90°, щоб «верх» картинки завжди був угорі екрана,
+            // незалежно від того, як повернута картка.
+            // Вимикається: settings.autoOrientImages = false (глобально)
+            // або "autoOrientImage": false у конкретному маркері.
+            const ORIENTATION_HYSTERESIS = 0.15; // запобігає перескакуванню поблизу 45°
+            const ORIENTATION_AXIS = new THREE.Vector3(0, 1, 0); // нормаль маркера
+            const orientationQuats = [0, 1, 2, 3].map(k =>
+                new THREE.Quaternion().setFromAxisAngle(ORIENTATION_AXIS, k * Math.PI / 2));
+            // markerIndex -> { index: поточний крок 0..3, items: [{ mesh, upMarker, basePosition, baseQuaternion }] }
+            let imageOrientables = new Map();
+            const tempOrientVec = new THREE.Vector3();
+
+            function isAutoOrientEnabled(markerIndex) {
+                const settingsEnabled = !(config.settings && config.settings.autoOrientImages === false);
+                const markerConfig = config.markers[markerIndex] || {};
+                if (markerConfig.autoOrientImage === false) return false;
+                if (markerConfig.autoOrientImage === true) return true;
+                return settingsEnabled;
+            }
+
+            // Напрямок «верху» текстури в локальних координатах геометрії або null,
+            // якщо об'єкт не є зображенням, яке має сенс вирівнювати
+            function getTextureUpVector(object) {
+                if (!object || !object.isMesh || !object.material || !object.material.map) return null;
+                if (object.material.map instanceof THREE.VideoTexture) return null;
+                if (object.userData && (object.userData.animation || object.userData.isController)) return null;
+                switch (object.geometry && object.geometry.type) {
+                    case 'PlaneBufferGeometry':
+                    case 'PlaneGeometry':
+                        return new THREE.Vector3(0, 1, 0);   // площина в XY, верх картинки = +Y
+                    case 'BoxBufferGeometry':
+                    case 'BoxGeometry':
+                        return new THREE.Vector3(0, 0, -1);  // верхня грань (+Y), верх картинки = -Z
+                    default:
+                        return null;
+                }
+            }
+
+            function registerOrientableImage(markerIndex, object) {
+                if (!isAutoOrientEnabled(markerIndex)) return;
+                const upLocal = getTextureUpVector(object);
+                if (!upLocal) return;
+
+                let entry = imageOrientables.get(markerIndex);
+                if (!entry) {
+                    entry = { index: 0, items: [] };
+                    imageOrientables.set(markerIndex, entry);
+                }
+                const baseQuaternion = object.quaternion.clone();
+                const basePosition = object.position.clone();
+                entry.items.push({
+                    mesh: object,
+                    upMarker: upLocal.applyQuaternion(baseQuaternion), // «верх» у координатах маркера
+                    basePosition: basePosition,
+                    baseQuaternion: baseQuaternion
+                });
+                // Новий об'єкт одразу отримує поточну орієнтацію решти контенту маркера
+                applyImageOrientation(entry.items[entry.items.length - 1], entry.index);
+            }
+
+            function applyImageOrientation(item, k) {
+                const q = orientationQuats[k];
+                item.mesh.quaternion.copy(q).multiply(item.baseQuaternion);
+                item.mesh.position.copy(item.basePosition).applyQuaternion(q);
+            }
+
+            function updateImageOrientations() {
+                imageOrientables.forEach((entry, markerIndex) => {
+                    const markerRoot = markerRoots[markerIndex];
+                    if (!markerRoot || !markerRoot.visible || entry.items.length === 0) return;
+
+                    const markerQuat = markerRoot.quaternion;
+                    const reference = entry.items[0].upMarker;
+                    const score = (k) => tempOrientVec.copy(reference)
+                        .applyQuaternion(orientationQuats[k])
+                        .applyQuaternion(markerQuat).y; // +Y у просторі камери = вгору на екрані
+
+                    // Найкращий крок — той, що найбільше «дивиться вгору»; перемикаємось
+                    // лише якщо він помітно кращий за поточний (гістерезис)
+                    let bestIndex = 0;
+                    let bestScore = -Infinity;
+                    for (let k = 0; k < 4; k++) {
+                        const s = score(k);
+                        if (s > bestScore) {
+                            bestScore = s;
+                            bestIndex = k;
+                        }
+                    }
+
+                    if (bestIndex !== entry.index &&
+                        bestScore > score(entry.index) + ORIENTATION_HYSTERESIS) {
+                        entry.index = bestIndex;
+                        entry.items.forEach(item => applyImageOrientation(item, bestIndex));
+                    }
+                });
+            }
+            // ==================================================================
+
             // Окремий масив для зберігання всього аудіо та відео контенту, який буде
             // запущений натисканням на екран смартфона
             var audioContent = [];
@@ -1315,6 +1415,9 @@
                             contentPromises.push(alternativeContentPromise.then((alternativeContent) => {
                                 if (alternativeContent) {
                                     markerAlternativeContent.set(i, alternativeContent);
+                                    // Альтернативні зображення теж вирівнюються «вгору»
+                                    const altItems = Array.isArray(alternativeContent) ? alternativeContent : [alternativeContent];
+                                    altItems.forEach(item => registerOrientableImage(i, item && item.mesh ? item.mesh : item));
                                     // console.log(`Alternative content for marker ${i} created`); // Diagnostic message removed
                                 }
                             }));
@@ -1404,6 +1507,7 @@
                                         mesh1.rotation.x = -Math.PI / 2;
                                         // Додаємо площину у контейнер
                                         markerRoots[i].add(mesh1);
+                                        registerOrientableImage(i, mesh1);
                                         resolve(imageFiles[i])
                                     });
                                 }).then(image => {
@@ -1559,6 +1663,10 @@
                                 if (primitive.animation) {
                                     mesh.userData.animation = primitive.animation;
                                 }
+
+                                // Коробку з текстурою вирівнюємо так, щоб картинка була «вгору»
+                                // (анімовані об'єкти пропускаються всередині функції)
+                                registerOrientableImage(i, mesh);
                             }
                             // Add a resolved promise to contentPromises for primitive content
                             contentPromises.push(Promise.resolve());
@@ -2653,6 +2761,7 @@
                 deltaTime = clock.getDelta();
                 totalTime += deltaTime;
                 update();
+                updateImageOrientations(); // вирівнюємо зображення «вгору» до перевірки колізій
                 checkController();
                 animateObjects(); // Анімуємо примітиви та моделі
                 render();
