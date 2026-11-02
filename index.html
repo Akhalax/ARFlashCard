@@ -2770,6 +2770,15 @@
 
         // Прибираємо блок після натискання на екран для дозволу аудіо програвання на iOS
         access.addEventListener('click', () => {
+            // iOS (Safari 16.4+): тип аудіосесії 'playback' — звук грає навіть у беззвучному режимі.
+            // Встановлюємо до створення AudioContext, у межах жесту користувача.
+            if (navigator.audioSession) {
+                try {
+                    navigator.audioSession.type = 'playback';
+                } catch (e) {
+                    console.warn('Could not set audioSession type:', e);
+                }
+            }
             initiateExperience();
             document.body.removeChild(access);
             loader.style.display = 'block';
