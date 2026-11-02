@@ -18,6 +18,7 @@
     <script src="threex/threex-artoolkitcontext.js"></script>
     <script src="threex/threex-arbasecontrols.js"></script>
     <script src="threex/threex-armarkercontrols.js"></script>
+    <script src="threex/threex-arsmoothedcontrols.js"></script>
 
     <!-- Додаємо js-aruco2 -->
     <script type="text/javascript" src="js-aruco2/src/svd.js"></script>
@@ -320,6 +321,56 @@
             // Головний контейнер, до якого увійдуть всі 3D об'єкти для програми
             var markerRoot, mainContainer;
             var markerRoots; // expose marker roots to update loop
+            // «Сирі» групи, у які ARToolKit записує позу маркера на кожному кадрі.
+            // Контент живе у markerRoots, які плавно наздоганяють сирі групи (ArSmoothedControls)
+            // і не зникають через одиничні пропущені кадри детекції.
+            // Для ArUco-маркерів trackedRoots[i] === markerRoots[i] (у них власне згладжування).
+            var trackedRoots = [];
+            var smoothedControls = []; // індекс = індекс маркера, undefined для ArUco
+            const SMOOTHING_PARAMS = {
+                lerpPosition: 0.5,       // 1 = без згладжування позиції
+                lerpQuaternion: 0.3,     // 1 = без згладжування повороту
+                lerpScale: 1,
+                minVisibleDelay: 0.0,    // с — затримка появи
+                minUnvisibleDelay: 0.25  // с — скільки тримати контент після втрати маркера
+            };
+
+            // Детальні логи на кожному кадрі сильно гальмують мобільні браузери
+            const DEBUG_LOG = false;
+            function debugLog(...args) {
+                if (DEBUG_LOG) console.log(...args);
+            }
+
+            // Площини відсікання камери. ARToolKit за замовчуванням дає near = 0.0001, far = 1000.
+            // - far: при matrixSize = 30 (одиниці ≈ мм) об'єкти далі ~1 м від камери обрізаються.
+            // - near: співвідношення far/near = 10^7 майже знищує точність буфера глибини,
+            //   що дає z-fighting (мерехтіння текстур там, де поверхні перетинаються).
+            const CAMERA_NEAR_PLANE = 5;      // ≈ 5 мм
+            const CAMERA_FAR_PLANE = 20000;   // ≈ 20 м
+
+            // Перебудовує near/far у перспективній матриці проєкції (стандартна конвенція three.js)
+            function setProjectionNearFar(projectionMatrix, newNear, newFar) {
+                const e = projectionMatrix.elements;
+                const A = e[10], B = e[14];
+                const near = B / (A - 1);
+                const far = B / (A + 1);
+                // Захист: змінюємо матрицю лише якщо вона має очікуваний вигляд
+                if (!(near > 0 && far > near && isFinite(near) && isFinite(far))) {
+                    console.warn('Unexpected projection matrix, near/far not changed', near, far);
+                    return;
+                }
+                e[10] = -(newFar + newNear) / (newFar - newNear);
+                e[14] = -2 * newFar * newNear / (newFar - newNear);
+            }
+
+            // Відкладені перемикання на альтернативний контент: один таймер на маркер
+            let pendingAltSwitchTimeouts = new Map();
+            function cancelPendingAltSwitch(markerIndex) {
+                if (pendingAltSwitchTimeouts.has(markerIndex)) {
+                    clearTimeout(pendingAltSwitchTimeouts.get(markerIndex));
+                    pendingAltSwitchTimeouts.delete(markerIndex);
+                }
+            }
 
             // Окремий масив для зберігання всього аудіо та відео контенту, який буде
             // запущений натисканням на екран смартфона
@@ -961,13 +1012,13 @@
                 // Check switch cooldown to prevent rapid toggling
                 var currentTime = performance.now();
                 if (currentTime - lastSwitchTime < switchCooldown) {
-                    console.log(`[COOLDOWN] Marker ${markerIndex}: switch blocked (${Math.round(currentTime - lastSwitchTime)}ms < ${switchCooldown}ms)`);
+                    debugLog(`[COOLDOWN] Marker ${markerIndex}: switch blocked (${Math.round(currentTime - lastSwitchTime)}ms < ${switchCooldown}ms)`);
                     return; // Ignore rapid switches
                 }
                 lastSwitchTime = currentTime;
 
                 // DEBUG: вивід інформації про перемикання контенту
-                console.log(`[SWITCH] Marker ${markerIndex}: ${currentState ? 'ALTERNATIVE' : 'MAIN'} → ${useAlternativeContent ? 'ALTERNATIVE' : 'MAIN'}`);
+                debugLog(`[SWITCH] Marker ${markerIndex}: ${currentState ? 'ALTERNATIVE' : 'MAIN'} → ${useAlternativeContent ? 'ALTERNATIVE' : 'MAIN'}`);
 
                 if (useAlternativeContent && markerAlternativeContent.has(markerIndex)) {
                     // Switch to alternative content
@@ -1139,7 +1190,7 @@
                     cameraParametersUrl: 'data/camera_para.dat',
                     detectionMode: 'mono_and_matrix',
                     matrixCodeType: '3x3',
-                    maxDetectionRate: -1,  // Вимикаємо обмеження частоти для AR.js (детектуємо самі)
+                    maxDetectionRate: 60,  // Не частіше 60 Гц (на 90/120 Гц екранах -1 перевантажує CPU)
                     canvasWidth: canvasWidth,
                     canvasHeight: canvasHeight
                 });
@@ -1147,6 +1198,7 @@
                 // Відновлюємо матрицю проекції камери після закінчення ініціалізації
                 arToolkitContext.init(function onCompleted() {
                     camera.projectionMatrix.copy(arToolkitContext.getProjectionMatrix());
+                    setProjectionNearFar(camera.projectionMatrix, CAMERA_NEAR_PLANE, CAMERA_FAR_PLANE);
                 });
 
                 // Створюємо головну групу для всіх 3D об'єктів
@@ -1215,6 +1267,14 @@
                 markerRoots = [];
                 for (let i = 0; i < maxMarkers; i++) {
                     markerRoots[i] = new THREE.Group();
+                    const markerType = config.markers[i].type || '';
+                    if (markerType.startsWith('aruco:')) {
+                        // ArucoMarkerControls має власну буферизацію та згладжування
+                        trackedRoots[i] = markerRoots[i];
+                    } else {
+                        trackedRoots[i] = new THREE.Group();
+                        smoothedControls[i] = new THREEx.ArSmoothedControls(markerRoots[i], SMOOTHING_PARAMS);
+                    }
                 }
   
                 // Проходимо по кожному маркеру з масиву і додаємо його в головний контейнер
@@ -1224,14 +1284,14 @@
                     const markerConfig = config.markers[i];
                     // Визначаємо тип маркера і створюємо відповідний контролер
                     if (markerConfig.type === 'pattern') {
-                        let markerControls = new THREEx.ArMarkerControls(arToolkitContext, markerRoots[i], {
+                        let markerControls = new THREEx.ArMarkerControls(arToolkitContext, trackedRoots[i], {
                             type: 'pattern',
                             patternUrl: "patterns/pattern-" + markerConfig.target + ".patt",
                         });
                         patternsID.push(markerConfig.target);
                         patternToMarkerIndex.set(markerConfig.target, i);
                     } else if (markerConfig.type === 'barcode') {
-                        let markerControls = new THREEx.ArMarkerControls(arToolkitContext, markerRoots[i], {
+                        let markerControls = new THREEx.ArMarkerControls(arToolkitContext, trackedRoots[i], {
                             type: "barcode",
                             barcodeValue: markerConfig.target,
                             size: markerConfig.matrixSize
@@ -1894,6 +1954,7 @@
                         currentIntersectedMarker = null;
                         // Reset all markers to first content
                         for (let i = 0; i < markerRoots.length; i++) {
+                            cancelPendingAltSwitch(i);
                             if (markerContentState.get(i)) {
                                 switchMarkerContent(i, false);
                             }
@@ -1926,6 +1987,7 @@
                         currentIntersectedMarker = null;
                         // Reset all markers to first content
                         for (let i = 0; i < markerRoots.length; i++) {
+                            cancelPendingAltSwitch(i);
                             if (markerContentState.get(i)) {
                                 switchMarkerContent(i, false);
                             }
@@ -1971,7 +2033,7 @@
 
                 // ✅ ПЕРЕВІРКА: якщо маркер не детектується (не видимий), ігноруємо колізію
                 if (intersectedMarkerIndex !== null && !markerRoots[intersectedMarkerIndex].visible) {
-                    console.log(`[COLLISION IGNORED] Marker ${intersectedMarkerIndex} is not detected (markerRoot not visible)`);
+                    debugLog(`[COLLISION IGNORED] Marker ${intersectedMarkerIndex} is not detected (markerRoot not visible)`);
                     intersectedMarkerIndex = null;
                 }
 
@@ -1979,9 +2041,9 @@
                 currentIntersectedMarker = intersectedMarkerIndex;
 
                 // Debug: вивід стану колізії
-                if (intersectedMarkerIndex !== null) {
+                if (DEBUG_LOG && intersectedMarkerIndex !== null) {
                     const isAltContent = markerContentState.get(intersectedMarkerIndex);
-                    console.log(`INTERSECTION: marker ${intersectedMarkerIndex}, contentState: ${isAltContent ? 'ALTERNATIVE' : 'MAIN'}`);
+                    debugLog(`INTERSECTION: marker ${intersectedMarkerIndex}, contentState: ${isAltContent ? 'ALTERNATIVE' : 'MAIN'}`);
                 }
 
                     // Switch to alternative content for intersected marker if it has alternative content
@@ -2008,17 +2070,31 @@
                         // -------------------------------------------------------------
 
                         // --- ЗАТРИМКА ЗМІНИ КОНТЕНТУ: чекаємо завершення аудіо ---
-                        // Альтернативний контент з'явиться після завершення звукового сигналу
-                        setTimeout(function() {
-                            switchMarkerContent(intersectedMarkerIndex, true);
-                        }, controllerIntersectionDelay);
+                        // Альтернативний контент з'явиться після завершення звукового сигналу.
+                        // Лише ОДИН таймер на маркер (раніше створювався новий на кожному кадрі,
+                        // і «застарілі» таймери вмикали альтернативний контент уже після відходу
+                        // вказівника — звідси мигання між основним і альтернативним контентом).
+                        if (!markerContentState.get(intersectedMarkerIndex) &&
+                            !pendingAltSwitchTimeouts.has(intersectedMarkerIndex)) {
+                            const targetIndex = intersectedMarkerIndex;
+                            pendingAltSwitchTimeouts.set(targetIndex, setTimeout(function() {
+                                pendingAltSwitchTimeouts.delete(targetIndex);
+                                // Перемикаємо, лише якщо вказівник досі торкається цього маркера
+                                if (currentIntersectedMarker === targetIndex) {
+                                    switchMarkerContent(targetIndex, true);
+                                }
+                            }, controllerIntersectionDelay));
+                        }
                         // ------------------------------------------------------------------
                     }
 
                     // Reset all other markers to first content when controller is active but not intersecting them
                     for (let i = 0; i < markerRoots.length; i++) {
+                        if (i !== intersectedMarkerIndex) {
+                            cancelPendingAltSwitch(i);
+                        }
                         if (i !== intersectedMarkerIndex && markerContentState.get(i)) {
-                            console.log(`[RESET] Marker ${i}: ALTERNATIVE → MAIN (no intersection)`);
+                            debugLog(`[RESET] Marker ${i}: ALTERNATIVE → MAIN (no intersection)`);
                             switchMarkerContent(i, false);
                         }
                         // Reset audio played state for markers that are no longer intersected
@@ -2031,29 +2107,25 @@
                         }
                         // Cancel audio timeout for markers that are no longer intersected
                         if (i !== intersectedMarkerIndex && markerAudioTimeouts.has(i)) {
-                            console.log(`[TIMEOUT CANCEL] Marker ${i}`);
+                            debugLog(`[TIMEOUT CANCEL] Marker ${i}`);
                             clearTimeout(markerAudioTimeouts.get(i));
                             markerAudioTimeouts.delete(i);
                         }
                     }
                     
                     // Debug: вивід стану таймерів
-                    if (markerAudioTimeouts.size > 0) {
-                        console.log(`[DEBUG] Active timeouts: ${Array.from(markerAudioTimeouts.keys()).join(', ')}`);
+                    if (DEBUG_LOG && markerAudioTimeouts.size > 0) {
+                        debugLog(`[DEBUG] Active timeouts: ${Array.from(markerAudioTimeouts.keys()).join(', ')}`);
                     }
             }
 
             // Функція для пошуку перетинів між двома об'єктами сцени
             function detectCollisionCubes(object1, object2, tipFraction = 0.1) {
-                // Скидаємо кеш bounding box для уникнення застарілих даних
-                // Це вирішує проблему, коли bounding box альтернативного контенту
-                // залишається після перемикання на основний контент
-                object1.geometry.boundingBox = null;
-                object2.geometry.boundingBox = null;
-                
-                // Перераховуємо bounding box з нуля
-                object1.geometry.computeBoundingBox();
-                object2.geometry.computeBoundingBox();
+                // Bounding box у локальних координатах геометрії не змінюється
+                // (кожен меш має власну геометрію), тож обчислюємо його один раз.
+                // Положення в світі враховується нижче через matrixWorld.
+                if (!object1.geometry.boundingBox) object1.geometry.computeBoundingBox();
+                if (!object2.geometry.boundingBox) object2.geometry.computeBoundingBox();
                 object1.updateMatrixWorld();
                 object2.updateMatrixWorld();
 
@@ -2086,22 +2158,25 @@
                 tipBoxLocal.max.copy(center).add(halfSize);
                 // --------------------------------------------------------------
 
-                // --- Debug: виводимо розміри bounding box ---
+                // --- Debug: виводимо розміри bounding box (лише при DEBUG_LOG) ---
+                let isFront = '';
+                if (DEBUG_LOG) {
                 const box1Size = new THREE.Vector3().subVectors(box1World.max, box1World.min);
                 const tipBoxSize = new THREE.Vector3().subVectors(tipBoxLocal.max, tipBoxLocal.min);
-                
+
                 // Обчислюємо відстань між центрами box
                 const box1Center = new THREE.Vector3().addVectors(box1World.min, box1World.max).multiplyScalar(0.5);
                 const tipBoxCenter = new THREE.Vector3().addVectors(tipBoxLocal.min, tipBoxLocal.max).multiplyScalar(0.5);
                 const distance = box1Center.distanceTo(tipBoxCenter);
-                
+
                 // Визначаємо напрямок відносно об'єкта (спереду/збоку)
                 const direction = new THREE.Vector3().subVectors(tipBoxCenter, box1Center).normalize();
                 const objectForward = new THREE.Vector3(0, 0, 1); // Припускаємо, що об'єкт орієнтований вперед по Z
                 const angle = direction.angleTo(objectForward) * (180 / Math.PI);
-                const isFront = angle < 45 ? 'СПЕРЕДУ' : (angle > 135 ? 'ЗЗАДУ' : 'ЗБОКУ');
-                
-                console.log(`[${isFront}] Collision: Object1=${box1Size.x.toFixed(1)}x${box1Size.y.toFixed(1)}x${box1Size.z.toFixed(1)}, Tip=${tipBoxSize.x.toFixed(1)}x${tipBoxSize.y.toFixed(1)}x${tipBoxSize.z.toFixed(1)}, Distance=${distance.toFixed(2)}mm, Angle=${angle.toFixed(0)}°`);
+                isFront = angle < 45 ? 'СПЕРЕДУ' : (angle > 135 ? 'ЗЗАДУ' : 'ЗБОКУ');
+                }
+
+                //console.log(`[${isFront}] Collision: Object1=${box1Size.x.toFixed(1)}x${box1Size.y.toFixed(1)}x${box1Size.z.toFixed(1)}, Tip=${tipBoxSize.x.toFixed(1)}x${tipBoxSize.y.toFixed(1)}x${tipBoxSize.z.toFixed(1)}, Distance=${distance.toFixed(2)}mm, Angle=${angle.toFixed(0)}°`);
                 // ---------------------------------------------
 
                 // --- Check collision based on mode ---
@@ -2130,7 +2205,7 @@
 
                 // --- Debug: виводимо результат колізії ---
                 if (isColliding) {
-                    console.log(`  → COLLISION DETECTED! [${isFront}]`);
+                    debugLog(`  → COLLISION DETECTED! [${isFront}]`);
                 }
                 // -----------------------------------------
 
@@ -2204,6 +2279,11 @@
             function update() {
                 if (arToolkitSource.ready !== false) {
                     arToolkitContext.update(arToolkitSource.domElement);
+
+                    // Плавно переносимо позу з «сирих» груп ARToolKit на групи з контентом
+                    for (let i = 0; i < smoothedControls.length; i++) {
+                        if (smoothedControls[i]) smoothedControls[i].update(trackedRoots[i]);
+                    }
 
                     // --- Розширена діагностика для Тесту 2: Реакція на швидкість руху ---
                     const currentTime = performance.now();
@@ -2317,9 +2397,9 @@
                                 let sound = soundData.sound || soundData; // Support both old format (direct) and new format (object)
                                 let playOnControllerIntersect = soundData.playOnControllerIntersect || false;
 
-                                // Get barcode detection status
-                                let barcodeMarker = arToolkitContext.arController.barcodeMarkers[elem];
-                                let markerDetected = barcodeMarker && barcodeMarker.inCurrent === true;
+                                // Згладжена видимість маркера: одиничний пропущений кадр детекції
+                                // більше не скидає альтернативний контент і не зупиняє звук
+                                let markerDetected = markerRoots[markerIndex].visible;
                                 let controllerIntersects = currentIntersectedMarker === markerIndex;
 
                                 // Determine if should play based on flag
@@ -2399,7 +2479,8 @@
                                 let sound = soundData.sound || soundData; // Support both old format (direct) and new format (object)
                                 let playOnControllerIntersect = soundData.playOnControllerIntersect || false;
 
-                                let markerDetected = arToolkitContext.arController.patternMarkers[index].inCurrent;
+                                // Згладжена видимість маркера (див. barcode вище)
+                                let markerDetected = markerRoots[markerIndex].visible;
                                 let controllerIntersects = currentIntersectedMarker === markerIndex;
 
                                 // Determine if should play based on flag
