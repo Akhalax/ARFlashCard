@@ -55,7 +55,65 @@
         const loader = document.getElementById('loader');
 
         // Оголошуємо глобальну змінну для конфігурації
-        let config = null; // Configuration loaded from config.json
+        let config = null; // Configuration loaded from config/<name>.json
+
+        // === РОЗТАШУВАННЯ КОНФІГУРАЦІЙ ТА МЕДІА ===
+        // Конфігурації лежать у config/, медіафайли (зображення, аудіо, відео, моделі) — у config/media/.
+        // У конфігу вказуються лише імена медіафайлів (або шляхи всередині media/), напр. "en_Man.jpg".
+        // Інша тека медіа: "settings": { "mediaFolder": "media-pt/" } (відносно config/).
+        // Інший конфіг: index.html?config=config_aruco  → config/config_aruco.json
+        const CONFIG_DIR = 'config/';
+        const DEFAULT_MEDIA_FOLDER = 'media/';
+        const CONFIG_URL = (() => {
+            const name = new URLSearchParams(location.search).get('config') || 'config';
+            // Дозволяємо лише прості імена файлів у теці config/
+            const safe = /^[\w-]+$/.test(name) ? name : 'config';
+            return `${CONFIG_DIR}${safe}.json`;
+        })();
+        let mediaBase = CONFIG_DIR + DEFAULT_MEDIA_FOLDER;
+
+        // Ім'я медіафайлу з конфігу → шлях від index.html.
+        // Абсолютні URL, data: та шляхи від кореня сайту залишаються як є.
+        function resolveMediaPath(path) {
+            if (!path || typeof path !== 'string') return path;
+            if (/^(?:[a-z]+:|\/)/i.test(path)) return path;
+            return mediaBase + path.replace(/^\.\//, '');
+        }
+
+        // Переписує всі медіа-шляхи конфігу (основний і альтернативний контент) на шляхи в config/media/
+        function resolveConfigMediaPaths(cfg) {
+            const folder = cfg.settings && cfg.settings.mediaFolder;
+            mediaBase = CONFIG_DIR + (folder ? String(folder).replace(/\/?$/, '/') : DEFAULT_MEDIA_FOLDER);
+
+            const resolveContent = (content) => {
+                if (!content) return;
+                if (content.contentFile) content.contentFile = resolveMediaPath(content.contentFile);
+                if (content.audioFile) content.audioFile = resolveMediaPath(content.audioFile);
+                if (content.primitive && content.primitive.textureFile) {
+                    content.primitive.textureFile = resolveMediaPath(content.primitive.textureFile);
+                }
+            };
+            (cfg.markers || []).forEach(marker => {
+                resolveContent(marker);
+                resolveContent(marker.alternativeContent);
+            });
+            return cfg;
+        }
+
+        // Завантаження конфігурації (з перетворенням медіа-шляхів)
+        function loadAppConfig() {
+            return fetch(CONFIG_URL)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Config file error (${CONFIG_URL}): ${response.status} ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(resolveConfigMediaPaths);
+        }
+
+        // Опис складних 3D-об'єктів (multiplex-3D) теж лежить у config/
+        const OBJECTS_CONFIG_URL = CONFIG_DIR + 'config-3D-objects.json';
 
         // Змінні для діагностики Тесту 2
         let lastMarkerStates = {};
@@ -168,10 +226,10 @@
                 if (marker.contentType === 'multiplex-3D' && marker.multiplex3D) {
                     // Додаємо перевірку config-3D-objects.json
                     checkPromises.push(
-                        checkFileExists('config-3D-objects.json')
+                        checkFileExists(OBJECTS_CONFIG_URL)
                             .then(exists => {
                                 if (!exists) {
-                                    missingFiles.push({ file: 'config-3D-objects.json', context: `${markerInfo} - 3D objects config` });
+                                    missingFiles.push({ file: OBJECTS_CONFIG_URL, context: `${markerInfo} - 3D objects config` });
                                 }
                             })
                     );
@@ -230,10 +288,10 @@
                     if (alt.contentType === 'multiplex-3D' && alt.multiplex3D) {
                         // Додаємо перевірку config-3D-objects.json
                         checkPromises.push(
-                            checkFileExists('config-3D-objects.json')
+                            checkFileExists(OBJECTS_CONFIG_URL)
                                 .then(exists => {
                                     if (!exists) {
-                                        missingFiles.push({ file: 'config-3D-objects.json', context: `${altContext} - 3D objects config` });
+                                        missingFiles.push({ file: OBJECTS_CONFIG_URL, context: `${altContext} - 3D objects config` });
                                     }
                                 })
                         );
@@ -286,14 +344,8 @@
             console.warn('==============================');
         }
 
-        // Завантажуємо конфігурацію з config.json при завантаженні сторінки для відображення привітального тексту
-        fetch('config.json')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Config file error: ${response.status} ${response.statusText}`);
-                }
-                return response.json();
-            })
+        // Завантажуємо конфігурацію при завантаженні сторінки для відображення привітального тексту
+        loadAppConfig()
             .then(async data => {
                 config = data;
                 // Оновлюємо привітальний текст з конфігурації
@@ -870,7 +922,7 @@
                         // Створюємо матеріал з кольором або текстурою
                         if (partConfig.textureFile) {
                             // Завантажуємо текстуру, якщо вона вказана
-                            let texture = new THREE.TextureLoader().load(partConfig.textureFile);
+                            let texture = new THREE.TextureLoader().load(resolveMediaPath(partConfig.textureFile));
                             material = new THREE.MeshBasicMaterial({
                                 map: texture,
                                 color: new THREE.Color(partConfig.color || '#ffffff')
@@ -928,7 +980,7 @@
                 }
 
                 // Завантажуємо конфігурацію об'єкта з config-3D-objects.json
-                return fetch('config-3D-objects.json')
+                return fetch(OBJECTS_CONFIG_URL)
                     .then(response => {
                         if (!response.ok) {
                             throw new Error('Failed to load config-3D-objects.json');
@@ -996,7 +1048,7 @@
                             // Створюємо матеріал з кольором або текстурою
                             if (partConfig.textureFile) {
                                 // Завантажуємо текстуру, якщо вона вказана
-                                let texture = new THREE.TextureLoader().load(partConfig.textureFile);
+                                let texture = new THREE.TextureLoader().load(resolveMediaPath(partConfig.textureFile));
                                 material = new THREE.MeshBasicMaterial({
                                     map: texture,
                                     color: new THREE.Color(partConfig.color || '#ffffff')
@@ -1178,14 +1230,8 @@
                 markerContentState.set(markerIndex, useAlternativeContent);
             }
 
-            // Завантажуємо конфігурацію з config.json перед ініціалізацією
-            fetch('config.json')
-                .then(async response => {
-                    if (!response.ok) {
-                        throw new Error(`Config file error: ${response.status} ${response.statusText}`);
-                    }
-                    return response.json();
-                })
+            // Завантажуємо конфігурацію перед ініціалізацією
+            loadAppConfig()
                 .then(async data => {
                     config = data;
                     // Оновлюємо привітальний текст з конфігурації
@@ -1207,7 +1253,7 @@
                         <h3>Configuration Error</h3>
                         <p>Could not load configuration file.</p>
                         <p>${error.message}</p>
-                        <p>Please ensure that config.json is present and accessible.</p>
+                        <p>Please ensure that ${CONFIG_URL} is present and accessible.</p>
                     </div>`;
                 });
 
@@ -1743,7 +1789,7 @@
                             if (config.markers[i] && objectId) {
 
                                 contentPromises.push(
-                                    fetch('config-3D-objects.json')
+                                    fetch(OBJECTS_CONFIG_URL)
                                         .then(response => {
                                             if (!response.ok) {
                                                 throw new Error('Failed to load config-3D-objects.json');
@@ -1806,7 +1852,7 @@
 
                                                 // Створюємо матеріал з кольором або текстурою
                                                 if (partConfig.textureFile) {
-                                                    let texture = new THREE.TextureLoader().load(partConfig.textureFile);
+                                                    let texture = new THREE.TextureLoader().load(resolveMediaPath(partConfig.textureFile));
                                                     material = new THREE.MeshBasicMaterial({
                                                         map: texture,
                                                         color: new THREE.Color(partConfig.color || '#ffffff')

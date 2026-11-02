@@ -628,6 +628,25 @@ Gato
         </div>
         </div>
 
+        <!-- AR Config Panel -->
+        <div class="panel" id="arConfigPanel">
+            <h2>🧩 AR App Config (config.json)</h2>
+            <p class="api-info" style="margin-top: 0; margin-bottom: 12px;">
+                Builds <code>config.json</code> for the AR app from the word lists above: a pointer marker plus two cards per word pair
+                (English card and target-language card). The bundle ZIP contains images, audio, the "?" image, <code>config.json</code>
+                and <code>cards.json</code> (list of pairs) laid out as <code>config/config.json</code>, <code>config/cards.json</code> and
+                <code>config/media/…</code> — unpack it into the app folder (next to <code>index.html</code>).
+                To build <code>config.json</code> from an existing folder of files, use the
+                <a href="config-builder.html" target="_blank">Config Builder</a>.
+            </p>
+            <div id="arConfigSettings"></div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                <button class="btn btn-primary" onclick="downloadConfigJson()">📄 Download config.json</button>
+                <button class="btn btn-success" onclick="downloadArBundle()">📦 Download AR Bundle ZIP</button>
+            </div>
+            <div id="arConfigStatus" style="margin-top: 12px; font-size: 13px;"></div>
+        </div>
+
         <!-- Results Panel -->
         <div class="panel">
             <h2>📋 Generated Cards <span class="badge" id="cardsCount">0</span></h2>
@@ -638,6 +657,8 @@ Gato
     <!-- JSZip for creating ZIP archives -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Shared config.json template (also used by config-builder.html) -->
+    <script src="config-template.js"></script>
 
     <script>
         // ==================== CONSTANTS ====================
@@ -1902,7 +1923,150 @@ Gato
             }, 3000);
         }
 
+        // ==================== AR CONFIG (config.json) ====================
+
+        // Word pairs from the two lists, with the same file names the generator uses
+        function getWordPairs() {
+            const enWords = document.getElementById('enWordsInput').value.split('\n').map(w => w.trim()).filter(Boolean);
+            const targetWords = document.getElementById('targetWordsInput').value.split('\n').map(w => w.trim()).filter(Boolean);
+            const targetLang = document.getElementById('targetLanguageSelect').value;
+
+            if (enWords.length === 0 || targetWords.length === 0) {
+                throw new Error('Enter at least one word in both lists.');
+            }
+            if (enWords.length !== targetWords.length) {
+                throw new Error(`Word count mismatch! English: ${enWords.length}, Target: ${targetWords.length}.`);
+            }
+
+            return enWords.map((enWord, i) => ({
+                source: {
+                    lang: 'en',
+                    word: enWord,
+                    image: ARConfig.imageFileName('en', enWord),
+                    audio: ARConfig.audioFileName('en', enWord)
+                },
+                target: {
+                    lang: targetLang,
+                    word: targetWords[i],
+                    image: ARConfig.imageFileName(targetLang, targetWords[i]),
+                    audio: ARConfig.audioFileName(targetLang, targetWords[i])
+                }
+            }));
+        }
+
+        function showConfigStatus(lines, type) {
+            const colors = { ok: '#11998e', warn: '#b26a00', error: '#f5576c' };
+            const status = document.getElementById('arConfigStatus');
+            status.style.color = colors[type] || '#333';
+            status.innerHTML = lines.map(l => `<div>${ARConfig.escapeHtml(l)}</div>`).join('');
+        }
+
+        function buildGeneratorConfig() {
+            const pairs = getWordPairs();
+            const options = ARConfig.readSettingsForm(document.getElementById('arConfigSettings'));
+            const result = ARConfig.buildConfig(pairs, options);
+            return Object.assign({ pairs, options }, result);
+        }
+
+        function downloadConfigJson() {
+            try {
+                const { config, pairs } = buildGeneratorConfig();
+                ARConfig.downloadText('config.json', ARConfig.stringify(config));
+                showConfigStatus([`✅ config.json: ${pairs.length} word pairs, ${config.markers.length} markers (incl. pointer).`,
+                    'Put it into config/; images and audio go into config/media/ with the generator\'s file names.'], 'ok');
+            } catch (error) {
+                showConfigStatus([`❌ ${error.message}`], 'error');
+            }
+        }
+
+        // "?" card for the target language, drawn with the current image settings
+        async function generateQuestionImage(lang) {
+            const config = getImageConfig();
+            const canvas = document.createElement('canvas');
+            canvas.width = config.width;
+            canvas.height = config.height;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = config.backgroundColor;
+            ctx.fillRect(0, 0, config.width, config.height);
+
+            // Flag in the top-left corner, same as on word cards (wait for it to load)
+            try {
+                const flagImg = new Image();
+                flagImg.src = 'data:image/svg+xml;base64,' + btoa(getSvgFlagForLanguage(lang, 80, 54));
+                await new Promise((resolve, reject) => { flagImg.onload = resolve; flagImg.onerror = reject; });
+                ctx.drawImage(flagImg, 30 - 40, 20 - 27, 80, 54);
+            } catch (e) {
+                console.warn('Could not draw flag for question image', e);
+            }
+
+            ctx.font = `bold ${Math.round(Math.min(config.height * 0.6, config.fontSize * 3))}px Arial`;
+            ctx.fillStyle = config.textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('?', config.width / 2, config.height / 2 + 10);
+
+            return canvas.toDataURL('image/jpeg', 0.95);
+        }
+
+        async function downloadArBundle() {
+            let built;
+            try {
+                built = buildGeneratorConfig();
+            } catch (error) {
+                showConfigStatus([`❌ ${error.message}`], 'error');
+                return;
+            }
+            const { config, pairs, options, warnings } = built;
+            const targetLang = document.getElementById('targetLanguageSelect').value;
+
+            // Same layout as the app expects: config/config.json + config/media/<files>
+            // (file names in config.json are relative to config/media/)
+            const zip = new JSZip();
+            const configFolder = zip.folder('config');
+            const media = configFolder.folder('media');
+            const added = new Set();
+
+            generatedImages.forEach(img => {
+                media.file(img.name, img.data.split(',')[1], { base64: true });
+                added.add(img.name);
+            });
+            generatedAudio.forEach(audio => {
+                media.file(audio.name, audio.data);
+                added.add(audio.name);
+            });
+
+            // "?" image: generated unless a custom file name is set
+            if (options.useQuestionImage && !options.questionImage) {
+                const name = ARConfig.questionFileName(targetLang);
+                const dataURL = await generateQuestionImage(targetLang);
+                media.file(name, dataURL.split(',')[1], { base64: true });
+                added.add(name);
+            }
+
+            configFolder.file('config.json', ARConfig.stringify(config));
+            configFolder.file(ARConfig.MANIFEST_NAME, JSON.stringify(ARConfig.buildManifest(pairs, {
+                sourceLanguage: 'en',
+                targetLanguage: targetLang
+            }), null, 2));
+
+            const missing = ARConfig.referencedFiles(config).filter(f => !added.has(f));
+            const content = await zip.generateAsync({ type: 'blob' });
+            saveAs(content, 'ar-cards-bundle.zip');
+
+            const lines = [`✅ Bundle: ${pairs.length} word pairs, ${config.markers.length} markers, ${added.size} files.`];
+            if (missing.length) {
+                lines.push(`⚠️ Not in the bundle (${missing.length}): ${missing.join(', ')}`);
+                lines.push('Generate images and audio first, or add these files manually.');
+            }
+            warnings.forEach(w => lines.push(`⚠️ ${w}`));
+            showConfigStatus(lines, missing.length ? 'warn' : 'ok');
+        }
+
         window.onload = () => {
+            // AR config settings form
+            ARConfig.renderSettingsForm(document.getElementById('arConfigSettings'));
+
             // Initialize target flag
             updateTargetFlag();
             
