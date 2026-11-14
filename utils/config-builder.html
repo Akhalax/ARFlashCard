@@ -135,16 +135,20 @@
             <p class="hint">
                 Choose the app's <code>config</code> folder, its <code>media</code> folder, or a folder with the same layout.
                 The app reads configs from <code>config/</code> and media from <code>config/media/</code>, so file paths in
-                <code>config.json</code> are relative to <code>media/</code>. Files are named <code>&lt;language&gt;_&lt;word&gt;.jpg / .mp3</code>, as the
-                <a href="ar-cards-generator.html">generator</a> creates them. Words of a pair are matched by:
+                <code>config.json</code> are relative to <code>media/</code>. Files are named as the
+                <a href="ar-cards-generator.html">generator</a> creates them:
+                <code>01_term_&lt;term&gt;.jpg / .mp3</code> and <code>01_definition_&lt;term&gt;.jpg / .mp3</code>.
+                A term and its definition are matched by:
             </p>
             <ul class="hint">
-                <li><code>cards.json</code> written by the generator (bundle ZIP) — exact pairs and order;</li>
-                <li>a shared number prefix: <code>01_en_Man.jpg</code> + <code>01_pt-pt_Homem.jpg</code>;</li>
-                <li>a sub-folder per pair: <code>Man/en_Man.jpg</code> + <code>Man/pt-pt_Homem.jpg</code>;</li>
-                <li>the same word in both languages; everything else can be paired by hand below.</li>
+                <li><code>cards.json</code> written by the generator (bundle ZIP) — exact pairs, order and texts;</li>
+                <li>the shared number: <code>01_term_Атом.jpg</code> + <code>01_definition_Атом.jpg</code>;</li>
+                <li>the same name without a number: <code>term_Атом.jpg</code> + <code>definition_Атом.jpg</code>;</li>
+                <li>one term and one definition in a sub-folder; everything else can be paired by hand below.</li>
             </ul>
-            <p class="hint">"?" images are recognised by the word <code>question</code>, e.g. <code>pt-pt_question.jpg</code> or <code>pt-question.jpg</code>.</p>
+            <p class="hint">The "?" images of hidden cards are <code>question_term.jpg</code> and <code>question_definition.jpg</code>
+                (<code>question.jpg</code> is used for both if the separate ones are missing).
+                The on-screen prompts use the full texts from <code>cards.json</code>; without it only the term name is known.</p>
             <div class="pick-row">
                 <label class="file-label">📁 Choose folder
                     <input type="file" id="folderInput" webkitdirectory directory multiple>
@@ -159,21 +163,11 @@
 
         <!-- Step 2: pairs -->
         <div class="panel">
-            <h2>2. Word pairs <span id="pairsCount" class="hint"></span></h2>
-            <div class="config-row" style="flex-wrap: wrap;">
-                <div class="config-item">
-                    <label for="sourceLang">First card language:</label>
-                    <select id="sourceLang"></select>
-                </div>
-                <div class="config-item">
-                    <label for="targetLang">Second card language:</label>
-                    <select id="targetLang"></select>
-                </div>
-            </div>
+            <h2>2. Term – definition pairs <span id="pairsCount" class="hint"></span></h2>
             <div class="table-wrap">
                 <table>
                     <thead>
-                        <tr><th>#</th><th>First card</th><th>Second card</th><th>Markers</th><th></th></tr>
+                        <tr><th>#</th><th>Term card</th><th>Definition card</th><th>Markers</th><th></th></tr>
                     </thead>
                     <tbody id="pairsBody"><tr><td colspan="5" class="empty">Choose a folder to start.</td></tr></tbody>
                 </table>
@@ -181,7 +175,7 @@
 
             <div id="unpairedSection" style="display: none; margin-top: 20px;">
                 <h3 style="color: #555; margin-bottom: 8px;">Not paired automatically</h3>
-                <p class="hint" style="margin-top: 0;">Pick the matching word for each card and press "Add pair".</p>
+                <p class="hint" style="margin-top: 0;">Pick the matching definition for each term and press "Add pair".</p>
                 <div class="table-wrap">
                     <table><tbody id="unpairedBody"></tbody></table>
                 </div>
@@ -216,8 +210,8 @@
         let files = [];            // [{ name, path, file }]
         let manifest = null;       // parsed cards.json if present
         let grouping = null;       // result of ARConfig.groupFiles
-        let pairs = [];            // [{ source: entry, target: entry }]
-        let unpaired = { source: [], target: [] };
+        let pairs = [];            // [{ term: entry, definition: entry }]
+        let unpaired = { term: [], definition: [] };
         let lastConfig = null;
         const objectUrls = new Map();
 
@@ -243,7 +237,7 @@
             objectUrls.forEach(url => URL.revokeObjectURL(url));
             objectUrls.clear();
 
-            let all = Array.from(fileList).map(f => ({ name: f.name, rawPath: relativePath(f), file: f }));
+            const all = Array.from(fileList).map(f => ({ name: f.name.normalize('NFC'), rawPath: relativePath(f).normalize('NFC'), file: f }));
             // If the selection contains a media/ folder, only files inside it are card media
             const hasMediaFolder = all.some(f => /(?:^|\/)media\//.test(f.rawPath));
             files = all
@@ -259,28 +253,17 @@
                     console.warn('cards.json could not be parsed', e);
                 }
             }
-
-            const preferred = manifest ? { source: manifest.sourceLanguage, target: manifest.targetLanguage } : null;
-            regroup(preferred);
+            regroup();
         }
 
-        function regroup(preferredLangs) {
-            grouping = ARConfig.groupFiles(files.map(f => ({ name: f.name, path: f.path })), manifest, preferredLangs);
+        function regroup() {
+            grouping = ARConfig.groupFiles(files.map(f => ({ name: f.name, path: f.path })), manifest);
             pairs = grouping.pairs.slice();
-            unpaired = { source: grouping.unpaired.source.slice(), target: grouping.unpaired.target.slice() };
+            unpaired = { term: grouping.unpaired.term.slice(), definition: grouping.unpaired.definition.slice() };
 
-            fillLanguageSelects();
             const methods = grouping.method.length ? ` · paired by: ${grouping.method.join(', ')}` : '';
-            $('filesSummary').textContent = `${files.length} files, languages: ${grouping.languages.join(', ') || '—'}${methods}`;
+            $('filesSummary').textContent = `${files.length} files${methods}`;
             render();
-        }
-
-        function fillLanguageSelects() {
-            const fill = (select, value) => {
-                select.innerHTML = grouping.languages.map(l => `<option value="${l}" ${l === value ? 'selected' : ''}>${l}</option>`).join('');
-            };
-            fill($('sourceLang'), grouping.sourceLang);
-            fill($('targetLang'), grouping.targetLang);
         }
 
         function urlFor(path) {
@@ -297,13 +280,18 @@
 
         const esc = ARConfig.escapeHtml;
 
+        function shortText(text, max) {
+            const t = String(text || '');
+            return t.length > max ? t.slice(0, max - 1) + '…' : t;
+        }
+
         function cardCell(entry) {
             const url = urlFor(entry.image);
             const thumb = url ? `<img class="thumb" src="${url}" alt="">` : '<div class="thumb missing">no image</div>';
             const audio = entry.audio
                 ? `<span class="ok" title="${esc(entry.audio)}">🔊</span>`
                 : '<span class="bad" title="No audio file">🔇</span>';
-            return `<div class="cell-card">${thumb}<div><div><b>${esc(entry.word)}</b> ${audio}</div>
+            return `<div class="cell-card">${thumb}<div><div title="${esc(entry.text || '')}"><b>${esc(shortText(entry.text || entry.label || '—', 60))}</b> ${audio}</div>
                     <div class="files">${esc([entry.image, entry.audio].filter(Boolean).join(' · '))}</div></div></div>`;
         }
 
@@ -317,8 +305,8 @@
             $('pairsBody').innerHTML = pairs.length ? pairs.map((p, i) => `
                 <tr>
                     <td>${i + 1}</td>
-                    <td>${cardCell(p.source)}</td>
-                    <td>${cardCell(p.target)}</td>
+                    <td>${cardCell(p.term)}</td>
+                    <td>${cardCell(p.definition)}</td>
                     <td class="hint">${markerIds.length ? `${markerIds[i * 2]} / ${markerIds[i * 2 + 1]}` : '—'}</td>
                     <td class="actions">
                         <button class="btn btn-small" onclick="movePair(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
@@ -326,21 +314,22 @@
                         <button class="btn btn-small" onclick="removePair(${i})" title="Unpair">✕</button>
                     </td>
                 </tr>`).join('')
-                : `<tr><td colspan="5" class="empty">${files.length ? 'No pairs found yet — pair the words below.' : 'Choose a folder to start.'}</td></tr>`;
+                : `<tr><td colspan="5" class="empty">${files.length ? 'No pairs found yet — pair the cards below.' : 'Choose a folder to start.'}</td></tr>`;
 
-            const hasUnpaired = unpaired.source.length || unpaired.target.length;
+            const hasUnpaired = unpaired.term.length || unpaired.definition.length;
             $('unpairedSection').style.display = hasUnpaired ? 'block' : 'none';
-            const options = unpaired.target.map((t, j) => `<option value="${j}">${esc(t.word)}${t.folder ? ` (${esc(t.folder)})` : ''}</option>`).join('');
-            $('unpairedBody').innerHTML = unpaired.source.map((s, i) => `
+            const options = unpaired.definition
+                .map((d, j) => `<option value="${j}">${esc(shortText(d.text || d.label || d.image || d.audio, 50))}</option>`).join('');
+            $('unpairedBody').innerHTML = unpaired.term.map((t, i) => `
                 <tr>
-                    <td>${cardCell(s)}</td>
-                    <td>${unpaired.target.length
+                    <td>${cardCell(t)}</td>
+                    <td>${unpaired.definition.length
                         ? `<select id="pairSelect${i}">${options}</select>
                            <button class="btn btn-small" onclick="addPair(${i})">Add pair</button>`
-                        : '<span class="hint">no unpaired words in the second language</span>'}</td>
+                        : '<span class="hint">no unpaired definitions left</span>'}</td>
                 </tr>`).join('')
-                + (unpaired.source.length === 0 && unpaired.target.length
-                    ? `<tr><td colspan="2" class="hint">Unpaired second-language words: ${unpaired.target.map(t => esc(t.word)).join(', ')}</td></tr>`
+                + (unpaired.term.length === 0 && unpaired.definition.length
+                    ? `<tr><td colspan="2" class="hint">Definitions without a term: ${unpaired.definition.map(d => esc(shortText(d.text || d.label || d.image, 40))).join(', ')}</td></tr>`
                     : '');
 
             updateResult();
@@ -354,24 +343,25 @@
 
         function removePair(i) {
             const [p] = pairs.splice(i, 1);
-            unpaired.source.push(p.source);
-            unpaired.target.push(p.target);
+            unpaired.term.push(p.term);
+            unpaired.definition.push(p.definition);
             render();
         }
 
         function addPair(i) {
             const j = parseInt($(`pairSelect${i}`).value, 10);
-            const [s] = unpaired.source.splice(i, 1);
-            const [t] = unpaired.target.splice(j, 1);
-            pairs.push({ source: s, target: t });
+            const [t] = unpaired.term.splice(i, 1);
+            const [d] = unpaired.definition.splice(j, 1);
+            pairs.push({ term: t, definition: d });
             render();
         }
 
         // ==================== RESULT ====================
 
         function toConfigPair(p) {
-            const side = e => ({ lang: e.lang, word: e.word, image: e.image, audio: e.audio });
-            return { source: side(p.source), target: side(p.target) };
+            // No label fallback: a definition file is named after its term (see groupFiles)
+            const side = e => ({ text: e.text || '', image: e.image, audio: e.audio });
+            return { term: side(p.term), definition: side(p.definition) };
         }
 
         function updateResult() {
@@ -388,18 +378,19 @@
             }
 
             const options = ARConfig.readSettingsForm($('settingsForm'));
-            const targetLang = $('targetLang').value;
 
-            // "?" image: use the one found in the folder unless a name is entered
-            if (options.useQuestionImage && !options.questionImage) {
-                const found = ARConfig.findQuestionImage(grouping.questionImages, targetLang);
-                if (found) {
-                    options.questionImage = found;
-                    lines.push(['ok', `"?" image: ${found}`]);
-                } else {
-                    options.questionImage = ARConfig.questionFileName(targetLang);
-                    lines.push(['warn', `No "?" image for ${targetLang} in the folder — config uses ${options.questionImage}; add that file or untick the option.`]);
-                }
+            // "?" images (hidden cards): use the ones found in the folder
+            if (options.hideUntilTouched) {
+                [['term', 'questionTermImage'], ['definition', 'questionDefinitionImage']].forEach(([role, key]) => {
+                    const found = grouping.questionImages[role];
+                    if (found) {
+                        options[key] = found;
+                        lines.push(['ok', `"?" image for ${role} cards: ${found}`]);
+                    } else {
+                        options[key] = ARConfig.questionFileName(role);
+                        lines.push(['warn', `No "?" image for ${role} cards in the folder — config uses ${options[key]}; add that file or untick the option.`]);
+                    }
+                });
             }
 
             try {
@@ -408,14 +399,11 @@
 
                 const present = new Set(files.map(f => f.path));
                 const missing = ARConfig.referencedFiles(config).filter(f => !present.has(f));
-                lines.unshift(['ok', `✅ ${pairs.length} word pairs → ${config.markers.length} markers (incl. pointer).`]);
+                lines.unshift(['ok', `✅ ${pairs.length} term–definition pairs → ${config.markers.length} markers (incl. pointer).`]);
                 warnings.forEach(w => lines.push(['warn', `⚠️ ${w}`]));
                 if (missing.length) lines.push(['warn', `⚠️ Referenced but not in the folder: ${missing.join(', ')}`]);
-                if (unpaired.source.length || unpaired.target.length) {
-                    lines.push(['warn', `⚠️ ${unpaired.source.length + unpaired.target.length} word(s) are not paired and are left out.`]);
-                }
-                if (grouping.otherLanguages.length) {
-                    lines.push(['warn', `⚠️ Other languages ignored: ${grouping.otherLanguages.join(', ')}`]);
+                if (unpaired.term.length || unpaired.definition.length) {
+                    lines.push(['warn', `⚠️ ${unpaired.term.length + unpaired.definition.length} card(s) are not paired and are left out.`]);
                 }
 
                 $('preview').textContent = ARConfig.stringify(config);
@@ -448,10 +436,6 @@
             loadFiles(e.dataTransfer.files);
         });
 
-        ['sourceLang', 'targetLang'].forEach(id => $(id).addEventListener('change', () => {
-            regroup({ source: $('sourceLang').value, target: $('targetLang').value });
-        }));
-
         ARConfig.renderSettingsForm($('settingsForm'));
         $('settingsForm').addEventListener('input', render);
         $('settingsForm').addEventListener('change', render);
@@ -460,10 +444,7 @@
             if (lastConfig) ARConfig.downloadText('config.json', ARConfig.stringify(lastConfig));
         });
         $('downloadManifestBtn').addEventListener('click', () => {
-            const m = ARConfig.buildManifest(pairs.map(toConfigPair), {
-                sourceLanguage: $('sourceLang').value,
-                targetLanguage: $('targetLang').value
-            });
+            const m = ARConfig.buildManifest(pairs.map(toConfigPair));
             ARConfig.downloadText(ARConfig.MANIFEST_NAME, JSON.stringify(m, null, 2));
         });
 

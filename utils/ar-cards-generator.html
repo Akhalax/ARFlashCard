@@ -3,25 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dual-Marker-Based Multimodal Bilingual Augmented Reality Flashcard Generator</title>
+    <title>Term–Definition AR Flashcard Generator</title>
     <style>
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px 16px; }
 
         h1 {
             text-align: center;
@@ -38,18 +31,6 @@
             margin-bottom: 20px;
         }
 
-        .settings-container {
-            display: grid;
-            grid-template-columns: 3fr 1fr;
-            gap: 20px;
-        }
-
-        @media (max-width: 1200px) {
-            .settings-container {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .panel h2 {
             color: #333;
             margin-top: 0;
@@ -57,64 +38,27 @@
             border-bottom: 2px solid #f0f0f0;
         }
 
-        .panel h3 {
-            color: #555;
-            margin-top: 20px;
-        }
+        .two-columns { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; }
+        @media (max-width: 900px) { .two-columns { grid-template-columns: 1fr; } }
 
-        .config-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-            align-items: flex-end;
-        }
+        .config-row { display: flex; gap: 10px; margin-bottom: 15px; align-items: flex-end; flex-wrap: wrap; }
+        .config-item { display: flex; flex-direction: column; }
 
-        .config-item {
-            display: flex;
-            flex-direction: column;
-        }
+        label { font-weight: 600; color: #555; margin-bottom: 5px; font-size: 14px; }
 
-        label {
-            font-weight: 600;
-            color: #555;
-            margin-bottom: 5px;
-            font-size: 14px;
-        }
-
-        input[type="text"],
-        input[type="number"],
-        select,
-        textarea {
+        input[type="text"], input[type="number"], input[type="password"], select, textarea {
             padding: 10px;
             border: 2px solid #e0e0e0;
             border-radius: 6px;
             font-size: 14px;
+            font-family: inherit;
             transition: border-color 0.3s;
         }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #667eea; }
+        input[type="color"] { width: 60px; height: 38px; border: none; cursor: pointer; padding: 0; }
+        input.short { width: 90px; }
 
-        input[type="text"]:focus,
-        input[type="number"]:focus,
-        select:focus,
-        textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .preview-canvas {
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            background: white;
-            max-width: 200px;
-            height: auto;
-        }
-
-        input[type="color"] {
-            width: 60px;
-            height: 35px;
-            border: none;
-            cursor: pointer;
-        }
+        textarea { width: 100%; min-height: 220px; resize: vertical; line-height: 1.5; white-space: pre; overflow-x: auto; }
 
         .btn {
             padding: 12px 20px;
@@ -124,402 +68,73 @@
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
-            margin-right: 10px;
-            margin-bottom: 10px;
         }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(0,0,0,0.2); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-success { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .btn-small { padding: 6px 10px; font-size: 12px; background: #f0f0f0; color: #333; }
+        .buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
 
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-        }
+        .hint { font-size: 13px; color: #666; line-height: 1.5; }
+        .hint code { background: #f3f3fb; padding: 1px 5px; border-radius: 4px; }
+        .status { font-size: 13px; line-height: 1.6; margin-top: 12px; }
+        .status .ok { color: #11998e; }
+        .status .warn { color: #b26a00; }
+        .status .error { color: #f5576c; }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
+        .preview-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+        .preview-row figure { margin: 0; text-align: center; font-size: 12px; color: #666; }
+        .preview-row canvas { width: 180px; height: auto; border: 2px solid #ddd; border-radius: 8px; background: #fff; display: block; }
 
-        .btn-success {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-            color: white;
-        }
+        .progress { height: 8px; background: #eee; border-radius: 6px; overflow: hidden; margin-top: 10px; display: none; }
+        .progress > div { height: 100%; width: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); transition: width 0.2s; }
 
-        .btn-info {
-            background: linear-gradient(135deg, #2193b0 0%, #6dd5ed 100%);
-            color: white;
-        }
-
-        .btn-warning {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-        }
-
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .speech-section {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .speech-section h3 {
-            margin-top: 0;
-            color: #333;
-        }
-
-        .icon-search-section {
-            background: #f0f4ff;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-        }
-
-        .icon-search-section h3 {
-            margin-top: 0;
-            color: #333;
-        }
-
-        .icon-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 10px;
-            margin-top: 15px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .icon-item {
-            background: white;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 10px;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .icon-item:hover {
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-        }
-
-        .icon-item.selected {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-
-        .icon-item span.material-symbols-outlined {
-            font-size: 32px;
-        }
-
-        .icon-item i.ti {
-            font-size: 32px;
-        }
-
-        .icon-item-label {
-            font-size: 10px;
-            color: #666;
-            margin-top: 5px;
-            text-align: center;
-        }
-
-        .layout-options {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 0;
-        }
-
-        .layout-option {
-            padding: 5px 8px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            cursor: pointer;
-            text-align: center;
-            transition: all 0.2s;
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            white-space: nowrap;
-        }
-
-        .layout-option:hover {
-            border-color: #667eea;
-        }
-
-        .layout-option.selected {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-
-        .layout-option svg {
-            width: 60px;
-            height: 40px;
-            border: 1px solid #999;
-        }
-
-        .word-lists-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-            align-items: start;
-        }
-
-        @media (max-width: 900px) {
-            .word-lists-container {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .word-list-panel {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .word-list-panel h3 {
-            margin-top: 0;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 32px;
-            flex-wrap: wrap;
-            font-size: 16px;
-        }
-
-        .word-list-panel textarea {
-            width: 100%;
-            height: 180px;
-            resize: vertical;
-            font-family: inherit;
-            font-size: 13px;
-        }
-
-        .word-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-            max-height: 600px;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        .word-card {
-            background: #f8f9fa;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .word-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-        }
-
-        .word-card.selected {
-            border: 3px solid #667eea;
-            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
-        }
-
-        .word-card img {
-            width: 100%;
-            height: 120px;
-            object-fit: contain;
-        }
-
-        .word-card-content {
-            padding: 12px;
-        }
-
-        .word-card-text {
-            font-size: 14px;
-            color: #333;
-            text-align: center;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .word-card-bilingual {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .word-card-bilingual .lang-word {
-            flex: 1;
-            text-align: center;
-            padding: 5px;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-
-        .word-card-bilingual .en-word {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-
-        .word-card-bilingual .target-word {
-            background: #fce4ec;
-            color: #c2185b;
-        }
-
-        .word-card-buttons {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: nowrap;
-        }
-
-        .edit-icon-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            background: #667eea;
-            color: white;
-            border-radius: 12px;
-            font-size: 11px;
-            margin-left: 5px;
-        }
-
-        .api-info {
-            font-size: 12px;
-            color: #666;
-            margin-top: 8px;
-        }
-
-        .api-info a {
-            color: #667eea;
-        }
-
-        svg {
-            display: inline-block;
-            vertical-align: middle;
-        }
+        .pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+        .pair { border: 2px solid #eee; border-radius: 10px; padding: 10px; }
+        .pair-head { font-size: 13px; color: #555; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .pair-cards { display: flex; gap: 10px; }
+        .pair-cards figure { margin: 0; flex: 1; text-align: center; }
+        .pair-cards img { width: 100%; border: 1px solid #ddd; border-radius: 6px; }
+        .pair-cards figcaption { display: flex; gap: 4px; justify-content: center; margin-top: 4px; }
+        .empty { color: #999; font-style: italic; }
     </style>
-
-    <!-- Google Material Symbols -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
-    <!-- Tabler Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
 <body>
     <div class="container">
-        <h1>🎨🔊 Dual-Marker-Based Multimodal Bilingual Augmented Reality Flashcard Generator</h1>
+        <h1>🧠 Term – Definition AR Flashcard Generator</h1>
 
-        <!-- Bilingual Word Lists Panel -->
-        <div class="panel" id="bilingualPanel">
-            <h2>📝 Bilingual Word Lists</h2>
-            <div class="word-lists-container">
-                <div class="word-list-panel">
-                    <h3>
-                        <svg style="width: 24px; height: 24px; vertical-align: middle; margin-right: 4px;" viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
-                            <!-- UK Flag (Union Jack) -->
-                            <rect width="60" height="40" fill="#012169"/>
-                            <path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/>
-                            <path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="5" fill="none"/>
-                            <rect x="0" y="16" width="60" height="8" fill="#fff"/>
-                            <rect x="26" y="0" width="8" height="40" fill="#fff"/>
-                            <rect x="0" y="18" width="60" height="4" fill="#C8102E"/>
-                            <rect x="28" y="0" width="4" height="40" fill="#C8102E"/>
-                        </svg>
-                        English Words
-                    </h3>
-                    <textarea id="enWordsInput" placeholder="Enter English words, each on a new line..." spellcheck="false">
-Man
-Woman
-Child
-Dog
-Cat
-</textarea>
-                    <p style="font-size: 11px; color: #666; margin-top: 6px;">
-                        💡 Icons will be searched based on these English words
-                    </p>
+        <!-- Terms and definitions -->
+        <div class="panel">
+            <h2>📝 Terms and definitions <span id="pairCount" class="hint"></span></h2>
+            <div class="two-columns">
+                <div>
+                    <label for="termsInput">Terms (one per line):</label>
+                    <textarea id="termsInput" spellcheck="false">Атом
+Молекула
+Фотосинтез</textarea>
                 </div>
-                <div class="word-list-panel">
-                    <h3>
-                        <svg id="targetFlagSvg" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 4px;" viewBox="0 0 90 60" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Portugal Flag -->
-                            <rect width="90" height="60" fill="#006600"/>
-                            <rect x="36" y="0" width="54" height="60" fill="#ff0000"/>
-                            <circle cx="36" cy="30" r="18" fill="#ffcc00"/>
-                            <path d="M30,30 L30,24 L42,30 L30,36 Z" fill="#006600"/>
-                        </svg>
-                        Target Language Words
-                        <select id="targetLanguageSelect" style="margin-left: 10px; font-size: 12px; padding: 6px 10px; height: 32px;" onchange="updateTargetFlag()">
-                            <option value="pt-pt" selected>Portuguese (Portugal) - pt-pt</option>
-                            <option value="pt-br">Portuguese (Brazil) - pt-br</option>
-                            <option value="pl-pl">Polish (Poland) - pl-pl</option>
-                            <option value="de-de">German (Germany) - de-de</option>
-                            <option value="en-us">English (US) - en-us</option>
-                            <option value="en-gb">English (UK) - en-gb</option>
-                            <option value="es-es">Spanish (Spain) - es-es</option>
-                            <option value="fr-fr">French (France) - fr-fr</option>
-                            <option value="it-it">Italian (Italy) - it-it</option>
-                        </select>
-                        <button class="btn btn-primary btn-small" onclick="autoTranslate()" style="margin-left: 10px; padding: 3px 12px; font-size: 15px;">🌐 Translate</button>
-                    </h3>
-                    <textarea id="targetWordsInput" placeholder="Enter target language words, each on a new line..." spellcheck="false">
-Homem
-Mulher
-Criança
-Cachorro
-Gato
-</textarea>
-                    <p style="font-size: 11px; color: #666; margin-top: 6px;">
-                        💡 Must have same number of words as English list
-                    </p>
-                    <div id="translateProgress" style="display: none; margin-top: 10px; padding: 10px; background: #f0f4ff; border-radius: 6px;">
-                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <div style="flex: 1; background: #e0e0e0; border-radius: 10px; height: 16px; overflow: hidden;">
-                                <div id="translateProgressFill" style="width: 0%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); transition: width 0.3s;"></div>
-                            </div>
-                            <span id="translateProgressText" style="font-size: 11px; color: #555; min-width: 60px;">0/0</span>
-                        </div>
-                        <div id="translateStatus" style="font-size: 11px; color: #667eea;"></div>
-                    </div>
+                <div>
+                    <label for="definitionsInput">Definitions (one per line, same order):</label>
+                    <textarea id="definitionsInput" spellcheck="false">Найменша частинка хімічного елемента, що зберігає його властивості.
+Найменша частинка речовини, що зберігає її хімічні властивості.
+Утворення органічних речовин рослинами з вуглекислого газу й води під дією світла.</textarea>
                 </div>
             </div>
+            <p class="hint">
+                Line N of the definitions belongs to line N of the terms. You can also paste
+                <code>Term — Definition</code> lines (one pair per line) into the terms box and press
+                <button class="btn btn-small" onclick="splitPastedPairs()">Split “Term — Definition” lines</button>
+            </p>
         </div>
 
-        <!-- Settings Container (Image + Audio) -->
-        <div class="settings-container">
-            <!-- Image Settings Panel -->
-            <div class="panel">
-                <h2>🎨 Image Settings</h2>
-
+        <!-- Card design -->
+        <div class="panel">
+            <h2>🎨 Card design</h2>
             <div class="config-row">
                 <div class="config-item">
-                    <label for="imgWidth">Width (px):</label>
-                    <input type="number" id="imgWidth" value="400" min="100" max="2000">
-                </div>
-                <div class="config-item">
-                    <label for="imgHeight">Height (px):</label>
-                    <input type="number" id="imgHeight" value="300" min="100" max="2000">
+                    <label for="imgSize">Size (px, square):</label>
+                    <input type="number" id="imgSize" value="512" min="128" max="2048" class="short">
                 </div>
                 <div class="config-item">
                     <label for="backgroundColor">Background:</label>
@@ -527,130 +142,120 @@ Gato
                 </div>
                 <div class="config-item">
                     <label for="textColor">Text:</label>
-                    <input type="color" id="textColor" value="#667eea">
+                    <input type="color" id="textColor" value="#2d2d4a">
                 </div>
                 <div class="config-item">
-                    <label for="iconColor">Icon:</label>
-                    <input type="color" id="iconColor" value="#667eea">
+                    <label for="termColor">Term badge:</label>
+                    <input type="color" id="termColor" value="#667eea">
                 </div>
                 <div class="config-item">
-                    <label for="fontSize">Font Size (px):</label>
-                    <input type="number" id="fontSize" value="60" min="12" max="200">
+                    <label for="definitionColor">Definition badge:</label>
+                    <input type="color" id="definitionColor" value="#11998e">
                 </div>
                 <div class="config-item">
-                    <label for="iconSize">Icon Size (px):</label>
-                    <input type="number" id="iconSize" value="150" min="20" max="500">
+                    <label for="termLetter">Term letter:</label>
+                    <input type="text" id="termLetter" value="Т" maxlength="3" class="short">
                 </div>
                 <div class="config-item">
-                    <div class="layout-options" style="margin-bottom: 0; gap: 5px; align-items: flex-end;">
-                        <div class="layout-option selected" data-layout="top" onclick="selectLayout('top')">
-                            <div>Icon Top</div>
-                            <svg viewBox="0 0 60 40">
-                                <rect x="22" y="5" width="15" height="12" fill="#667eea" />
-                                <text x="30" y="30" font-size="8" fill="#333" text-anchor="middle">WORD</text>
-                            </svg>
-                        </div>
-                        <div class="layout-option" data-layout="bottom" onclick="selectLayout('bottom')">
-                            <div>Icon Bottom</div>
-                            <svg viewBox="0 0 60 40">
-                                <text x="30" y="15" font-size="8" fill="#333" text-anchor="middle">WORD</text>
-                                <rect x="22" y="20" width="15" height="12" fill="#667eea" />
-                            </svg>
-                        </div>
-                    </div>
+                    <label for="definitionLetter">Definition letter:</label>
+                    <input type="text" id="definitionLetter" value="В" maxlength="3" class="short">
+                </div>
+                <div class="config-item">
+                    <label for="termFontSize">Term font (max px):</label>
+                    <input type="number" id="termFontSize" value="72" min="12" max="300" class="short">
+                </div>
+                <div class="config-item">
+                    <label for="definitionFontSize">Definition font (max px):</label>
+                    <input type="number" id="definitionFontSize" value="44" min="10" max="200" class="short">
                 </div>
             </div>
-
-            <div class="icon-search-section">
-                <h3>🔍 Icon Source & Preview</h3>
-                <div style="display: grid; grid-template-columns: 1fr auto auto; gap: 20px; align-items: start;">
-                    <!-- Left column: Search controls and icons -->
-                    <div>
-                        <div class="config-row" style="margin-bottom: 10px; align-items: flex-end;">
-                            <div class="config-item" style="flex: 1;">
-                                <label for="previewWord">Test search with word:</label>
-                                <input type="text" id="previewWord" placeholder="Enter word to test icon search..." value="Education">
-                            </div>
-                            <div class="config-item" style="flex: 1;">
-                                <label for="iconSource">Icon Library:</label>
-                                <select id="iconSource" onchange="updateIconSource()">
-                                    <option value="iconify">Iconify (100,000+)</option>
-                                    <option value="material">Google Material Symbols (3,000+)</option>
-                                    <option value="tabler">Tabler Icons (4,800+)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <p style="color: #666; font-size: 13px; margin-bottom: 10px;">
-                            🔎 Each word from your list will automatically get its own relevant icon. Use this preview to test how icon search works.
-                        </p>
-                        <div class="icon-grid" id="iconGrid"></div>
-                    </div>
-
-                    <!-- Middle column: Preview -->
-                    <div style="text-align: center;">
-                        <canvas id="previewCanvas" class="preview-canvas" width="200" height="120"></canvas>
-                        <div style="margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                            <button class="btn btn-primary" id="saveCardIconBtn" onclick="saveCardIcon()" style="display: none; padding: 8px 12px; font-size: 13px;">💾 Save Changes</button>
-                            <span id="editingCardLabel" style="display: none; color: #667eea; font-weight: 600; font-size: 13px;"></span>
-                        </div>
-                    </div>
-
-                    <!-- Right column: Action buttons -->
-                    <div style="display: flex; flex-direction: column; gap: 10px; justify-content: center;">
-                        <button class="btn btn-primary" onclick="generateAllImages()">🚀 Generate All Bilingual Images</button>
-                        <button class="btn btn-success" onclick="downloadAllImages()" id="downloadImagesBtn" disabled>📥 Download Images ZIP</button>
-                    </div>
-                </div>
+            <p class="hint">Cards are square because they are shown on square boxes in AR. Long text is wrapped and shrunk to fit.</p>
+            <div class="preview-row">
+                <figure><canvas id="previewTerm"></canvas><figcaption>Term card</figcaption></figure>
+                <figure><canvas id="previewDefinition"></canvas><figcaption>Definition card</figcaption></figure>
+                <figure><canvas id="previewQuestionTerm"></canvas><figcaption>Hidden term ("Card" mode)</figcaption></figure>
+                <figure><canvas id="previewQuestionDefinition"></canvas><figcaption>Hidden definition ("Card" mode)</figcaption></figure>
             </div>
+            <div class="buttons">
+                <button class="btn btn-primary" onclick="generateAllImages()">🚀 Generate all card images</button>
+            </div>
+            <div class="progress" id="imageProgress"><div></div></div>
+            <div class="status" id="imageStatus"></div>
         </div>
 
-        <!-- Audio Settings Panel -->
+        <!-- Audio -->
         <div class="panel">
-            <h2>🔊 Audio Settings (VoiceRSS API)</h2>
-
-            <div class="speech-section">
-                <div class="config-row">
-                    <div class="config-item" style="flex: 1;">
-                        <label for="apiKeyInput">VoiceRSS API Key:</label>
-                        <input type="text" id="apiKeyInput" placeholder="Enter your VoiceRSS API key" value="">
-                    </div>
+            <h2>🔊 Audio</h2>
+            <div class="config-row">
+                <div class="config-item">
+                    <label for="ttsEngine">Voice engine:</label>
+                    <select id="ttsEngine">
+                        <option value="piper" selected>Piper — Ukrainian, in the browser, free</option>
+                        <option value="voicerss">VoiceRSS — other languages, API key</option>
+                    </select>
                 </div>
-                <p class="api-info">
-                    🔗 Get your free API key at <a href="https://www.voicerss.org/" target="_blank">voicerss.org</a> (500 free requests/day)<br>
-                    💡 Bilingual mode: English (en-us) + Target Language
-                </p>
+                <!-- Piper -->
+                <div class="config-item engine-piper">
+                    <label for="piperVoice">Voice:</label>
+                    <select id="piperVoice"></select>
+                </div>
+                <div class="config-item engine-piper">
+                    <label for="piperRate">Speed:</label>
+                    <select id="piperRate">
+                        <option value="0.8">Slower</option>
+                        <option value="1" selected>Normal</option>
+                        <option value="1.15">Faster</option>
+                    </select>
+                </div>
+                <!-- VoiceRSS -->
+                <div class="config-item engine-voicerss" style="flex: 1; min-width: 240px;">
+                    <label for="apiKeyInput">VoiceRSS API key:</label>
+                    <input type="password" id="apiKeyInput" placeholder="Enter your VoiceRSS API key" autocomplete="off">
+                </div>
+                <div class="config-item engine-voicerss">
+                    <label for="voiceLanguage">Language:</label>
+                    <select id="voiceLanguage"></select>
+                </div>
             </div>
-
-            <div>
-                <button class="btn btn-primary" onclick="generateAllAudio()">🎵 Generate All Audio</button>
-                <button class="btn btn-success" onclick="downloadAllAudio()" id="downloadAudioBtn" disabled>📥 Download Audio ZIP</button>
+            <p class="hint engine-piper">
+                🗣️ Piper voices run on this computer (open-source models from
+                <a href="https://huggingface.co/rhasspy/piper-voices" target="_blank">rhasspy/piper-voices</a>).
+                The first use downloads the voice (21–114 MB) once; after that it is stored in the browser and works quickly.
+                Speech is saved as MP3.
+            </p>
+            <p class="hint engine-voicerss">
+                🔗 Free key at <a href="https://www.voicerss.org/" target="_blank">voicerss.org</a> (500 requests/day). VoiceRSS has no Ukrainian voice.
+            </p>
+            <div class="buttons">
+                <button class="btn btn-small" onclick="testVoice()" style="padding: 12px 16px;">▶ Listen to the first term</button>
+                <button class="btn btn-primary" onclick="generateAllAudio()">🎵 Generate all audio</button>
             </div>
-        </div>
+            <div class="progress" id="audioProgress"><div></div></div>
+            <div class="status" id="audioStatus"></div>
         </div>
 
-        <!-- AR Config Panel -->
+        <!-- AR Config -->
         <div class="panel" id="arConfigPanel">
             <h2>🧩 AR App Config (config.json)</h2>
-            <p class="api-info" style="margin-top: 0; margin-bottom: 12px;">
-                Builds <code>config.json</code> for the AR app from the word lists above: a pointer marker plus two cards per word pair
-                (English card and target-language card). The bundle ZIP contains images, audio, the "?" image, <code>config.json</code>
-                and <code>cards.json</code> (list of pairs) laid out as <code>config/config.json</code>, <code>config/cards.json</code> and
-                <code>config/media/…</code> — unpack it into the app folder (next to <code>index.html</code>).
-                To build <code>config.json</code> from an existing folder of files, use the
-                <a href="config-builder.html" target="_blank">Config Builder</a>.
+            <p class="hint" style="margin-top: 0;">
+                Builds <code>config.json</code> for the AR app: a pointer marker plus two cards per pair (term card and definition card).
+                The same config works in both app modes: "Card" (with the pointer) and "Chip" (without it).
+                The bundle ZIP contains <code>config/config.json</code>, <code>config/cards.json</code> and <code>config/media/…</code>
+                — unpack it into the app folder (next to <code>index.html</code>).
+                To build a config from an existing folder of files, use the <a href="config-builder.html" target="_blank">Config Builder</a>.
             </p>
             <div id="arConfigSettings"></div>
-            <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+            <div class="buttons">
                 <button class="btn btn-primary" onclick="downloadConfigJson()">📄 Download config.json</button>
                 <button class="btn btn-success" onclick="downloadArBundle()">📦 Download AR Bundle ZIP</button>
             </div>
-            <div id="arConfigStatus" style="margin-top: 12px; font-size: 13px;"></div>
+            <div class="status" id="arConfigStatus"></div>
         </div>
 
-        <!-- Results Panel -->
+        <!-- Results -->
         <div class="panel">
-            <h2>📋 Generated Cards <span class="badge" id="cardsCount">0</span></h2>
-            <div class="word-list" id="wordList"></div>
+            <h2>📋 Generated cards <span class="hint" id="cardsCount"></span></h2>
+            <div class="pairs" id="pairsList"><div class="empty">Generate the card images to see them here.</div></div>
         </div>
     </div>
 
@@ -659,1311 +264,461 @@ Gato
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <!-- Shared config.json template (also used by config-builder.html) -->
     <script src="config-template.js"></script>
+    <!-- Ukrainian speech synthesis in the browser (Piper); sets window.PiperTTS -->
+    <script type="module" src="piper-tts.js"></script>
 
     <script>
-        // ==================== CONSTANTS ====================
-        let selectedIcon = 'school';
-        let selectedLayout = 'top';
-        let selectedIconSource = 'iconify';
-        let generatedImages = [];
-        let generatedAudio = [];
-        let selectedCardIndex = null; // Index of currently selected card for editing
-        let cardsArray = []; // Array to store card data for easy access
+        // ==================== STATE ====================
+        // file name -> { data: dataURL | Blob, kind: 'image' | 'audio' }
+        const media = new Map();
+        let generatedPairs = [];   // pairs (with file names) the images were generated for
 
-        // Iconify API collections
-        const ICON_COLLECTIONS = {
-            'material': 'material-symbols',
-            'tabler': 'tabler',
-            'iconify': ''  // Empty = search all collections
+        const $ = id => document.getElementById(id);
+        const esc = ARConfig.escapeHtml;
+
+        // VoiceRSS languages (https://www.voicerss.org/api/)
+        const VOICERSS_LANGUAGES = {
+            'ar-eg': 'Arabic (Egypt)', 'ar-sa': 'Arabic (Saudi Arabia)', 'bg-bg': 'Bulgarian', 'ca-es': 'Catalan',
+            'zh-cn': 'Chinese (China)', 'zh-hk': 'Chinese (Hong Kong)', 'zh-tw': 'Chinese (Taiwan)', 'hr-hr': 'Croatian',
+            'cs-cz': 'Czech', 'da-dk': 'Danish', 'nl-be': 'Dutch (Belgium)', 'nl-nl': 'Dutch (Netherlands)',
+            'en-au': 'English (Australia)', 'en-ca': 'English (Canada)', 'en-gb': 'English (UK)', 'en-in': 'English (India)',
+            'en-ie': 'English (Ireland)', 'en-us': 'English (US)', 'fi-fi': 'Finnish', 'fr-ca': 'French (Canada)',
+            'fr-fr': 'French (France)', 'fr-ch': 'French (Switzerland)', 'de-at': 'German (Austria)', 'de-de': 'German (Germany)',
+            'de-ch': 'German (Switzerland)', 'el-gr': 'Greek', 'he-il': 'Hebrew', 'hi-in': 'Hindi', 'hu-hu': 'Hungarian',
+            'id-id': 'Indonesian', 'it-it': 'Italian', 'ja-jp': 'Japanese', 'ko-kr': 'Korean', 'ms-my': 'Malay',
+            'nb-no': 'Norwegian', 'pl-pl': 'Polish', 'pt-br': 'Portuguese (Brazil)', 'pt-pt': 'Portuguese (Portugal)',
+            'ro-ro': 'Romanian', 'ru-ru': 'Russian', 'sk-sk': 'Slovak', 'sl-si': 'Slovenian', 'es-mx': 'Spanish (Mexico)',
+            'es-es': 'Spanish (Spain)', 'sv-se': 'Swedish', 'ta-in': 'Tamil', 'th-th': 'Thai', 'tr-tr': 'Turkish', 'vi-vn': 'Vietnamese'
         };
 
-        // API cache for faster repeated searches
-        const iconCache = new Map();
+        // ==================== PAIRS ====================
 
-        // ==================== ADAPTIVE ICON SEARCH ====================
-
-        async function searchIconifyAPI(query, collection, limit = 50) {
-            try {
-                // Build URL with collection filter if specified
-                let url = `https://api.iconify.design/search?query=${encodeURIComponent(query)}&limit=${limit}`;
-                
-                if (collection) {
-                    url += `&prefix=${collection}`;
-                }
-
-                const response = await fetch(url);
-
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.status}`);
-                }
-
-                const data = await response.json();
-
-                if (data.icons && Array.isArray(data.icons)) {
-                    return data.icons;
-                }
-
-                return [];
-            } catch (error) {
-                console.error('Iconify API search error:', error);
-                throw error;
-            }
+        function readLines(id) {
+            return $(id).value.split('\n').map(l => l.trim()).filter(Boolean);
         }
 
-        // Normalize word for search
-        function normalizeWord(word) {
-            return word
-                .trim()
-                .toLowerCase()
-                .replace(/[^\w\s-]/g, '')  // Remove special chars
-                .replace(/\s+/g, '-');      // Spaces to dashes
-        }
-
-        // Simple lemmatization for common English forms
-        function lemmatizeWord(word) {
-            const irregularForms = {
-                'children': 'child',
-                'men': 'man',
-                'women': 'woman',
-                'people': 'person',
-                'mice': 'mouse',
-                'geese': 'goose',
-                'feet': 'foot',
-                'teeth': 'tooth',
-                'running': 'run',
-                'swimming': 'swim',
-                'sitting': 'sit',
-                'better': 'good',
-                'best': 'good',
-                'worse': 'bad',
-                'worst': 'bad',
-            };
-
-            if (irregularForms[word]) {
-                return irregularForms[word];
+        // Current pairs from the two lists, with the file names used for media and config
+        function getPairs() {
+            const terms = readLines('termsInput');
+            const definitions = readLines('definitionsInput');
+            if (terms.length === 0) throw new Error('Enter at least one term.');
+            if (terms.length !== definitions.length) {
+                throw new Error(`Terms and definitions must match line by line: ${terms.length} terms, ${definitions.length} definitions.`);
             }
-
-            // Simple suffix rules
-            const rules = [
-                [/ies$/, 'y'],      // categories → category
-                [/es$/, ''],        // boxes → box
-                [/s$/, ''],         // cats → cat
-                [/ing$/, ''],       // running → run
-                [/ed$/, ''],        // played → play
-                [/er$/, ''],        // teacher → teach
-                [/tion$/, 'te'],    // education → educate
-                [/ment$/, ''],      // development → develop
-                [/ness$/, ''],      // happiness → happy
-                [/ly$/, ''],        // quickly → quick
-            ];
-
-            for (const [pattern, replacement] of rules) {
-                if (pattern.test(word)) {
-                    return word.replace(pattern, replacement);
-                }
-            }
-
-            return word;
-        }
-
-        // Prioritize icons based on relevance
-        function prioritizeIcons(icons, query) {
-            const queryLower = query.toLowerCase();
-            
-            return icons
-                .filter((icon, index, self) => {
-                    // Remove duplicates by icon name
-                    const iconName = icon.split(':').pop();
-                    return self.findIndex(i => i.split(':').pop() === iconName) === index;
-                })
-                .sort((a, b) => {
-                    const aName = a.split(':').pop().toLowerCase();
-                    const bName = b.split(':').pop().toLowerCase();
-                    
-                    let scoreA = 0, scoreB = 0;
-                    
-                    // Exact match gets highest priority
-                    if (aName === queryLower) scoreA += 100;
-                    if (bName === queryLower) scoreB += 100;
-                    
-                    // Contains the query word
-                    if (aName.includes(queryLower)) scoreA += 50;
-                    if (bName.includes(queryLower)) scoreB += 50;
-                    
-                    // Shorter names = simpler icons
-                    scoreA += Math.max(0, 20 - aName.length);
-                    scoreB += Math.max(0, 20 - bName.length);
-                    
-                    return scoreB - scoreA;
-                });
-        }
-
-        async function getSuggestedIcons(word, source) {
-            // Normalize the word
-            const normalizedWord = normalizeWord(word);
-            const lowerWord = normalizedWord.toLowerCase();
-            
-            // Get collection for the source
-            const collection = ICON_COLLECTIONS[source] || null;
-            
-            // Check cache first
-            const cacheKey = `${lowerWord}:${source}`;
-            if (iconCache.has(cacheKey)) {
-                console.log(`💾 Cache: "${lowerWord}"`);
-                return iconCache.get(cacheKey);
-            }
-            
-            // Try original word
-            let icons = [];
-            try {
-                icons = await searchIconifyAPI(lowerWord, collection, 50);
-            } catch (error) {
-                console.warn(`API search for "${lowerWord}" failed`);
-            }
-            
-            // If no results, try lemmatized form
-            if (icons.length === 0) {
-                const lemma = lemmatizeWord(lowerWord);
-                if (lemma !== lowerWord) {
-                    console.log(`📚 Lemmatized: "${lowerWord}" → "${lemma}"`);
-                    try {
-                        icons = await searchIconifyAPI(lemma, collection, 50);
-                    } catch (error) {
-                        console.warn(`API search for "${lemma}" failed`);
-                    }
-                }
-            }
-            
-            // Prioritize results
-            const prioritizedIcons = prioritizeIcons(icons, lowerWord);
-            
-            // Store in cache
-            iconCache.set(cacheKey, prioritizedIcons);
-            
-            // Fallback if no icons found
-            if (prioritizedIcons.length === 0) {
-                console.log(`⚠️ Fallback for "${lowerWord}"`);
-                return getFallbackIcons(source);
-            }
-            
-            console.log(`✅ Found ${prioritizedIcons.length} icons for "${lowerWord}"`);
-            return prioritizedIcons;
-        }
-
-        function getFallbackIcons(source) {
-            const fallback = {
-                'material': [
-                    'home', 'person', 'settings', 'search', 'favorite', 'star',
-                    'check', 'close', 'add', 'edit', 'delete', 'save',
-                    'download', 'upload', 'share', 'lock', 'cloud', 'image',
-                    'music_note', 'videocam', 'mail', 'phone', 'location_on',
-                    'calendar_today', 'schedule', 'shopping_cart', 'payments', 'school', 'book'
-                ],
-                'tabler': [
-                    'home', 'user', 'settings', 'search', 'heart', 'star',
-                    'check', 'x', 'plus', 'edit', 'trash', 'download',
-                    'upload', 'share', 'lock', 'cloud', 'photo', 'music',
-                    'video', 'mail', 'phone', 'map-pin', 'calendar', 'clock',
-                    'shopping-cart', 'credit-card', 'school', 'book'
-                ],
-                'iconify': [
-                    'material-symbols:home', 'material-symbols:person', 'material-symbols:settings',
-                    'material-symbols:search', 'material-symbols:favorite', 'material-symbols:star'
-                ]
-            };
-            return fallback[source] || fallback['material'];
-        }
-
-        // ==================== ICON SEARCH UI ====================
-
-        function updateIconSource() {
-            selectedIconSource = document.getElementById('iconSource').value;
-            searchIcons();
-        }
-
-        async function searchIcons() {
-            const word = document.getElementById('previewWord').value.trim();
-            const iconGrid = document.getElementById('iconGrid');
-
-            if (!word) {
-                iconGrid.innerHTML = '';
-                return;
-            }
-
-            iconGrid.innerHTML = '';
-
-            try {
-                const matchingIcons = await getSuggestedIcons(word, selectedIconSource);
-
-                matchingIcons.slice(0, 30).forEach((icon) => {
-                    const iconItem = document.createElement('div');
-                    iconItem.className = 'icon-item' + (icon === selectedIcon ? ' selected' : '');
-                    iconItem.onclick = () => selectIcon(icon);
-
-                    if (selectedIconSource === 'material') {
-                        iconItem.innerHTML = `
-                            <span class="material-symbols-outlined">${icon}</span>
-                            <div class="icon-item-label">${icon}</div>
-                        `;
-                    } else if (selectedIconSource === 'tabler') {
-                        const tablerIconName = icon.replace(/_/g, '-');
-                        iconItem.innerHTML = `
-                            <i class="ti ti-${tablerIconName}"></i>
-                            <div class="icon-item-label">${tablerIconName}</div>
-                        `;
-                    } else {
-                        // Iconify - display icon name with collection prefix
-                        const iconDisplay = icon.includes(':') ? icon.split(':')[1] : icon;
-                        iconItem.innerHTML = `
-                            <img src="https://api.iconify.design/${icon}.svg?height=32" alt="${iconDisplay}" style="width: 32px; height: 32px;">
-                            <div class="icon-item-label">${icon}</div>
-                        `;
-                    }
-                    iconGrid.appendChild(iconItem);
-                });
-
-                if (!selectedIcon || !matchingIcons.includes(selectedIcon)) {
-                    selectedIcon = matchingIcons[0];
-                }
-
-            } catch (error) {
-                console.error('Search error:', error);
-
-                const fallbackIcons = getFallbackIcons(selectedIconSource);
-                fallbackIcons.forEach(icon => {
-                    const iconItem = document.createElement('div');
-                    iconItem.className = 'icon-item';
-                    iconItem.onclick = () => selectIcon(icon);
-
-                    if (selectedIconSource === 'material') {
-                        iconItem.innerHTML = `
-                            <span class="material-symbols-outlined">${icon}</span>
-                            <div class="icon-item-label">${icon}</div>
-                        `;
-                    } else if (selectedIconSource === 'tabler') {
-                        const tablerIconName = icon.replace(/_/g, '-');
-                        iconItem.innerHTML = `
-                            <i class="ti ti-${tablerIconName}"></i>
-                            <div class="icon-item-label">${tablerIconName}</div>
-                        `;
-                    } else {
-                        // Iconify fallback
-                        const iconDisplay = icon.includes(':') ? icon.split(':')[1] : icon;
-                        iconItem.innerHTML = `
-                            <img src="https://api.iconify.design/${icon}.svg?height=32" alt="${iconDisplay}" style="width: 32px; height: 32px;">
-                            <div class="icon-item-label">${icon}</div>
-                        `;
-                    }
-                    iconGrid.appendChild(iconItem);
-                });
-            }
-        }
-
-        function selectIcon(icon) {
-            selectedIcon = icon;
-            document.querySelectorAll('.icon-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            event.currentTarget.classList.add('selected');
-            generatePreview();
-        }
-
-        // ==================== LAYOUT ====================
-
-        function selectLayout(layout) {
-            selectedLayout = layout;
-            document.querySelectorAll('.layout-option').forEach(opt => {
-                opt.classList.remove('selected');
-            });
-            document.querySelector(`[data-layout="${layout}"]`).classList.add('selected');
-            generatePreview();
-        }
-
-        // ==================== IMAGE GENERATION ====================
-
-        function getImageConfig() {
-            return {
-                width: parseInt(document.getElementById('imgWidth').value),
-                height: parseInt(document.getElementById('imgHeight').value),
-                backgroundColor: document.getElementById('backgroundColor').value,
-                textColor: document.getElementById('textColor').value,
-                iconColor: document.getElementById('iconColor').value,
-                fontSize: parseInt(document.getElementById('fontSize').value),
-                iconSize: parseInt(document.getElementById('iconSize').value)
-            };
-        }
-
-        function loadIcon(iconName, source, color, size) {
-            if (source === 'tabler') {
-                return loadTablerIcon(iconName, color, size);
-            } else if (source === 'iconify') {
-                return loadIconifyIcon(iconName, color, size);
-            } else {
-                return loadMaterialIcon(iconName, color, size);
-            }
-        }
-
-        function loadTablerIcon(iconName, color, size) {
-            return new Promise((resolve, reject) => {
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = size;
-                tempCanvas.height = size;
-                const ctx = tempCanvas.getContext('2d');
-
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                const svgUrl = `https://api.iconify.design/tabler/${iconName}.svg?color=${encodeURIComponent(color)}`;
-                
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, size, size);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.onerror = () => {
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(size/2, size/2, size/2 - 4, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = `bold ${size/2}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(iconName[0].toUpperCase(), size/2, size/2);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.src = svgUrl;
-            });
-        }
-
-        function loadIconifyIcon(iconName, color, size) {
-            return new Promise((resolve, reject) => {
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = size;
-                tempCanvas.height = size;
-                const ctx = tempCanvas.getContext('2d');
-
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                
-                // Iconify API - use full icon name with collection prefix (e.g., "mdi:woman")
-                const svgUrl = `https://api.iconify.design/${iconName}.svg?color=${encodeURIComponent(color)}`;
-
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, size, size);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.onerror = () => {
-                    // Fallback to colored circle with letter
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(size/2, size/2, size/2 - 4, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = `bold ${size/2}px Arial`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(iconName[0].toUpperCase(), size/2, size/2);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.src = svgUrl;
-            });
-        }
-
-        function loadMaterialIcon(iconName, color, size) {
-            return new Promise((resolve, reject) => {
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = size;
-                tempCanvas.height = size;
-                const ctx = tempCanvas.getContext('2d');
-
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                const svgUrl = `https://api.iconify.design/material-symbols/${iconName.replace(/_/g, '-')}.svg?color=${encodeURIComponent(color)}`;
-                
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, size, size);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.onerror = () => {
-                    ctx.fillStyle = color;
-                    ctx.font = `${size}px Material Symbols Outlined`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    const codepoint = getMaterialIconCodepoint(iconName);
-                    ctx.fillText(codepoint, size/2, size/2);
-                    resolve(tempCanvas.toDataURL('image/png'));
-                };
-                img.src = svgUrl;
-            });
-        }
-
-        function getMaterialIconCodepoint(iconName) {
-            const codepoints = {
-                'school': '\ue3af', 'home': '\ue88a', 'person': '\ue7fd',
-                'man': '\ue4eb', 'woman': '\ue839', 'face': '\ue87c',
-                'settings': '\ue8b8', 'search': '\ue8b6', 'star': '\ue838',
-                'favorite': '\ue87d', 'check': '\ue5ca', 'close': '\ue5cd',
-                'add': '\ue145', 'edit': '\ue3c9', 'delete': '\ue872',
-                'lock': '\ue897', 'cloud': '\ue2bd', 'image': '\ue3f4',
-                'music_note': '\ue405', 'mail': '\ue158', 'phone': '\ue0cd'
-            };
-            return codepoints[iconName] || '\ue88a';
-        }
-
-        async function generatePreview() {
-            const word = document.getElementById('previewWord').value.trim();
-            if (!word) return;
-
-            const config = getImageConfig();
-            const canvas = document.getElementById('previewCanvas');
-            canvas.width = config.width;
-            canvas.height = config.height;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = config.backgroundColor;
-            ctx.fillRect(0, 0, config.width, config.height);
-
-            try {
-                const iconDataURL = await loadIcon(selectedIcon, selectedIconSource, config.iconColor, config.iconSize);
-                const iconImg = new Image();
-                iconImg.src = iconDataURL;
-                
-                await new Promise((resolve, reject) => {
-                    iconImg.onload = resolve;
-                    iconImg.onerror = reject;
-                });
-
-                let iconX, iconY, textX, textY;
-                const padding = 20;
-
-                switch (selectedLayout) {
-                    case 'top':
-                        iconX = (config.width - config.iconSize) / 2;
-                        iconY = padding;
-                        textX = config.width / 2;
-                        textY = config.height / 2 + config.iconSize / 2;
-                        break;
-                    case 'bottom':
-                        iconX = (config.width - config.iconSize) / 2;
-                        iconY = config.height - config.iconSize - padding;
-                        textX = config.width / 2;
-                        textY = config.height / 2 - config.iconSize / 2;
-                        break;
-                }
-
-                ctx.drawImage(iconImg, iconX, iconY, config.iconSize, config.iconSize);
-                ctx.font = `bold ${config.fontSize}px Arial`;
-                ctx.fillStyle = config.textColor;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(word, textX, textY);
-
-            } catch (error) {
-                console.error('Error generating preview:', error);
-            }
-        }
-
-        async function generateImageForWord(word, iconSearchWord, lang) {
-            const config = getImageConfig();
-            const canvas = document.createElement('canvas');
-            canvas.width = config.width;
-            canvas.height = config.height;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = config.backgroundColor;
-            ctx.fillRect(0, 0, config.width, config.height);
-
-            // Draw flag in top-left corner
-            if (lang) {
-                drawFlagOnCanvas(ctx, lang, 30, 20);
-            }
-
-            // Search for icon based on search word
-            let iconToUse = selectedIcon;
-            try {
-                const icons = await getSuggestedIcons(iconSearchWord, selectedIconSource);
-                if (icons.length > 0) {
-                    iconToUse = icons[0]; // Use first icon from search
-                }
-            } catch (error) {
-                console.warn(`Could not find icon for "${iconSearchWord}", using default`);
-            }
-
-            try {
-                const iconDataURL = await loadIcon(iconToUse, selectedIconSource, config.iconColor, config.iconSize);
-                const iconImg = new Image();
-                iconImg.src = iconDataURL;
-
-                await new Promise((resolve, reject) => {
-                    iconImg.onload = resolve;
-                    iconImg.onerror = reject;
-                });
-
-                let iconX, iconY, textX, textY;
-                const padding = 20;
-
-                switch (selectedLayout) {
-                    case 'top':
-                        iconX = (config.width - config.iconSize) / 2;
-                        iconY = padding + 25; // Add space for flag
-                        textX = config.width / 2;
-                        textY = config.height / 2 + config.iconSize / 2 + 10;
-                        break;
-                    case 'bottom':
-                        iconX = (config.width - config.iconSize) / 2;
-                        iconY = config.height - config.iconSize - padding;
-                        textX = config.width / 2;
-                        textY = config.height / 2 - config.iconSize / 2;
-                        break;
-                }
-
-                ctx.drawImage(iconImg, iconX, iconY, config.iconSize, config.iconSize);
-                ctx.font = `bold ${config.fontSize}px Arial`;
-                ctx.fillStyle = config.textColor;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-
-                // Draw SINGLE word
-                ctx.fillText(word, textX, textY);
-
-                return {
-                    dataURL: canvas.toDataURL('image/jpeg', 0.95),
-                    icon: iconToUse
-                };
-            } catch (error) {
-                console.error(`Error generating image for "${word}":`, error);
-                ctx.font = `bold ${config.fontSize}px Arial`;
-                ctx.fillStyle = config.textColor;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(word, config.width / 2, config.height / 2);
-                return canvas.toDataURL('image/jpeg', 0.95);
-            }
-        }
-
-        function drawFlagOnCanvas(ctx, lang, x, y) {
-            const flagWidth = 80;
-            const flagHeight = 54;
-
-            // Get SVG flag definition and draw it on canvas
-            const svgFlag = getSvgFlagForLanguage(lang, flagWidth, flagHeight);
-            
-            const img = new Image();
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgFlag);
-            img.onload = () => {
-                ctx.drawImage(img, x - flagWidth/2, y - flagHeight/2, flagWidth, flagHeight);
-                
-                // Draw country code next to flag
-                const countryCodes = {
-                    'pt-pt': 'PT',
-                    'pt-br': 'BR',
-                    'pl-pl': 'PL',
-                    'de-de': 'DE',
-                    'en-us': 'US',
-                    'en-gb': 'GB',
-                    'es-es': 'ES',
-                    'fr-fr': 'FR',
-                    'it-it': 'IT'
-                };
-                
-                const code = countryCodes[lang] || '';
-                if (code) {
-                    ctx.font = 'bold 14px Arial';
-                    ctx.fillStyle = '#333';
-                    ctx.textAlign = 'left';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(code, x + flagWidth/2 + 5, y);
-                }
-            };
-        }
-
-        function getSvgFlagForLanguage(lang, width, height) {
-            const flagMap = {
-                'pt-pt': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60" width="${width}" height="${height}"><rect width="90" height="60" fill="#006600"/><rect x="36" y="0" width="54" height="60" fill="#ff0000"/><circle cx="36" cy="30" r="20" fill="#ffcc00"/><g stroke="#006600" stroke-width="1.5"><circle cx="36" cy="30" r="14" fill="none"/><circle cx="36" cy="30" r="10" fill="none"/><circle cx="36" cy="30" r="6" fill="none"/><line x1="36" y1="16" x2="36" y2="44"/><line x1="22" y1="30" x2="50" y2="30"/><line x1="27" y1="21" x2="45" y2="39"/><line x1="45" y1="21" x2="27" y2="39"/></g><ellipse cx="36" cy="30" rx="8" ry="9" fill="#ffffff" stroke="#c00" stroke-width="0.5"/><g fill="#0066cc"><circle cx="32" cy="28" r="1.2"/><circle cx="40" cy="28" r="1.2"/><circle cx="36" cy="26" r="1.2"/><circle cx="34" cy="32" r="1.2"/><circle cx="38" cy="32" r="1.2"/><circle cx="36" cy="35" r="1.2"/></g></svg>`,
-                'pt-br': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="${width}" height="${height}"><rect width="1000" height="700" fill="#009c3b"/><polygon points="500,100 900,350 500,600 100,350" fill="#ffdf00"/><circle cx="500" cy="350" r="175" fill="#002776"/><path d="M350,320 Q500,400 650,320" stroke="#fff" stroke-width="25" fill="none"/><text x="500" y="360" font-size="35" fill="#fff" text-anchor="middle" font-family="Arial" font-weight="bold">ORDEM E PROGRESSO</text><g fill="#fff"><circle cx="500" cy="280" r="15"/><circle cx="440" cy="340" r="10"/><circle cx="560" cy="340" r="10"/><circle cx="480" cy="400" r="12"/><circle cx="520" cy="420" r="8"/><circle cx="420" cy="370" r="8"/><circle cx="580" cy="370" r="8"/></g></svg>`,
-                'pl-pl': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 50" width="${width}" height="${height}"><rect width="80" height="25" fill="#fff"/><rect y="25" width="80" height="25" fill="#dc143c"/></svg>`,
-                'de-de': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60" width="${width}" height="${height}"><rect width="90" height="20" fill="#000"/><rect y="20" width="90" height="20" fill="#dd0000"/><rect y="40" width="90" height="20" fill="#ffce00"/></svg>`,
-                'en-us': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60" width="${width}" height="${height}"><rect width="90" height="60" fill="#b22234"/><rect y="0" width="90" height="60" fill="#fff" stroke="#b22234" stroke-width="9.23"/><rect width="36" height="32.31" fill="#3c3b6e"/></svg>`,
-                'en-gb': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="${width}" height="${height}"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="5" fill="none"/><rect x="0" y="16" width="60" height="8" fill="#fff"/><rect x="26" y="0" width="8" height="40" fill="#fff"/><rect x="0" y="18" width="60" height="4" fill="#C8102E"/><rect x="28" y="0" width="4" height="40" fill="#C8102E"/></svg>`,
-                'es-es': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 750 500" width="${width}" height="${height}"><rect width="750" height="500" fill="#AA151B"/><rect y="125" width="750" height="250" fill="#F1BF00"/><g transform="translate(180,250)"><ellipse cx="0" cy="0" rx="55" ry="50" fill="#F1BF00" stroke="#AA151B" stroke-width="3"/><path d="M-20,-35 L-20,-20 L-35,-20 L-20,-5 L-20,10 L-5,-5 L10,10 L10,-5 L25,-20 L10,-20 L10,-35 Z" fill="#AA151B"/><circle cx="0" cy="-15" r="8" fill="#AA151B"/><path d="M-30,15 Q0,35 30,15" stroke="#AA151B" stroke-width="3" fill="none"/><path d="M-25,25 Q0,45 25,25" stroke="#AA151B" stroke-width="3" fill="none"/></g></svg>`,
-                'fr-fr': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60" width="${width}" height="${height}"><rect width="30" height="60" fill="#0055a4"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#ef4135"/></svg>`,
-                'it-it': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 60" width="${width}" height="${height}"><rect width="30" height="60" fill="#008c45"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#cd212a"/></svg>`
-            };
-            return flagMap[lang] || `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${width}" height="${height}"><circle cx="12" cy="12" r="10" fill="#667eea"/></svg>`;
-        }
-
-        function getFlagForLanguage(lang) {
-            const flagMap = {
-                'pt-pt': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="90" height="60" fill="#006600"/><rect x="36" y="0" width="54" height="60" fill="#ff0000"/><circle cx="36" cy="30" r="18" fill="#ffcc00"/><path d="M30,30 L30,24 L42,30 L30,36 Z" fill="#006600"/></svg>`,
-                'pt-br': `<svg style="width: 18px; height: 12px;" viewBox="0 0 100 70"><rect width="100" height="70" fill="#009c3b"/><polygon points="50,10 90,35 50,60 10,35" fill="#ffdf00"/><circle cx="50" cy="35" r="15" fill="#002776"/></svg>`,
-                'pl-pl': `<svg style="width: 18px; height: 12px;" viewBox="0 0 80 50"><rect width="80" height="25" fill="#fff"/><rect y="25" width="80" height="25" fill="#dc143c"/></svg>`,
-                'de-de': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="90" height="20" fill="#000"/><rect y="20" width="90" height="20" fill="#dd0000"/><rect y="40" width="90" height="20" fill="#ffce00"/></svg>`,
-                'en-us': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="90" height="60" fill="#b22234"/><rect y="0" width="90" height="60" fill="#fff" stroke="#b22234" stroke-width="9.23"/><rect width="36" height="32.31" fill="#3c3b6e"/></svg>`,
-                'en-gb': `<svg style="width: 18px; height: 12px;" viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="5" fill="none"/><rect x="0" y="16" width="60" height="8" fill="#fff"/><rect x="26" y="0" width="8" height="40" fill="#fff"/><rect x="0" y="18" width="60" height="4" fill="#C8102E"/><rect x="28" y="0" width="4" height="40" fill="#C8102E"/></svg>`,
-                'es-es': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="90" height="60" fill="#aa151b"/><rect y="15" width="90" height="30" fill="#f1bf00"/></svg>`,
-                'fr-fr': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="30" height="60" fill="#0055a4"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#ef4135"/></svg>`,
-                'it-it': `<svg style="width: 18px; height: 12px;" viewBox="0 0 90 60"><rect width="30" height="60" fill="#008c45"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#cd212a"/></svg>`
-            };
-            return flagMap[lang] || '<svg style="width: 18px; height: 12px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#667eea"/></svg>';
-        }
-
-        async function generateAllImages() {
-            const enWordsText = document.getElementById('enWordsInput').value;
-            const targetWordsText = document.getElementById('targetWordsInput').value;
-
-            const enWords = enWordsText.split('\n').filter(w => w.trim() !== '');
-            const targetWords = targetWordsText.split('\n').filter(w => w.trim() !== '');
-
-            if (enWords.length === 0 || targetWords.length === 0) {
-                alert('Enter at least one word in both lists!');
-                return;
-            }
-
-            if (enWords.length !== targetWords.length) {
-                alert(`Word count mismatch! English: ${enWords.length}, Target: ${targetWords.length}. Please make them equal.`);
-                return;
-            }
-
-            generatedImages = [];
-            cardsArray = []; // Reset cards array
-            const wordList = document.getElementById('wordList');
-            wordList.innerHTML = '';
-
-            // Generate cards for ENGLISH words (using English word for icon search)
-            for (let i = 0; i < enWords.length; i++) {
-                const enWord = enWords[i].trim();
-
-                try {
-                    // Search icon based on English word
-                    const result = await generateImageForWord(enWord, enWord, 'en-gb');
-                    const dataURL = result.dataURL;
-                    const iconUsed = result.icon;
-                    const fileName = `en_${enWord.replace(/\s+/g, '_')}.jpg`;
-                    generatedImages.push({
-                        name: fileName,
-                        data: dataURL,
-                        word: enWord,
-                        lang: 'en'
-                    });
-
-                    // Add card to list
-                    const wordCard = document.createElement('div');
-                    wordCard.className = 'word-card';
-                    wordCard.innerHTML = `
-                        <img src="${dataURL}" alt="${enWord}">
-                        <div class="word-card-content">
-                            <div class="word-card-text">${getFlagForLanguage('en-gb')} ${enWord}</div>
-                            <div class="word-card-buttons">
-                                <button class="btn btn-info btn-small" onclick="downloadSingleImage('${fileName}', '${dataURL}')" style="padding: 6px 10px; font-size: 11px;">📥</button>
-                                <button class="btn btn-small" onclick="playWord('${enWord}', 'en-us')" ${!document.getElementById('apiKeyInput').value.trim() ? 'disabled' : ''} style="padding: 6px 10px; font-size: 11px;">🔊</button>
-                                <button class="btn btn-small edit-icon-btn" onclick="selectCardForEdit(${cardsArray.length}, 'en')" style="padding: 6px 10px; font-size: 11px;">✏️</button>
-                            </div>
-                        </div>
-                    `;
-                    wordList.appendChild(wordCard);
-
-                    // Store card data
-                    cardsArray.push({
-                        index: cardsArray.length,
-                        word: enWord,
-                        lang: 'en',
-                        icon: iconUsed,
-                        element: wordCard
-                    });
-                } catch (error) {
-                    console.error(`Error for "${enWord}":`, error);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-
-            // Generate cards for TARGET language words (using English word for icon search)
-            const targetLang = document.getElementById('targetLanguageSelect').value;
-            
-            for (let i = 0; i < targetWords.length; i++) {
-                const targetWord = targetWords[i].trim();
-                const enWordForIcon = enWords[i];
-
-                try {
-                    // Search icon based on ENGLISH word, but display TARGET word
-                    const result = await generateImageForWord(targetWord, enWordForIcon, targetLang);
-                    const dataURL = result.dataURL;
-                    const iconUsed = result.icon;
-                    const fileName = `${document.getElementById('targetLanguageSelect').value}_${targetWord.replace(/\s+/g, '_')}.jpg`;
-                    generatedImages.push({
-                        name: fileName,
-                        data: dataURL,
-                        word: targetWord,
-                        lang: document.getElementById('targetLanguageSelect').value
-                    });
-
-                    // Add card to list
-                    const wordCard = document.createElement('div');
-                    wordCard.className = 'word-card';
-                    wordCard.innerHTML = `
-                        <img src="${dataURL}" alt="${targetWord}">
-                        <div class="word-card-content">
-                            <div class="word-card-text">${getFlagForLanguage(targetLang)} ${targetWord}</div>
-                            <div class="word-card-buttons">
-                                <button class="btn btn-info btn-small" onclick="downloadSingleImage('${fileName}', '${dataURL}')" style="padding: 6px 10px; font-size: 11px;">📥</button>
-                                <button class="btn btn-small" onclick="playWord('${targetWord}', '${targetLang}')" ${!document.getElementById('apiKeyInput').value.trim() ? 'disabled' : ''} style="padding: 6px 10px; font-size: 11px;">🔊</button>
-                            </div>
-                        </div>
-                    `;
-                    wordList.appendChild(wordCard);
-
-                    // Store card data
-                    cardsArray.push({
-                        index: cardsArray.length,
-                        word: targetWord,
-                        lang: document.getElementById('targetLanguageSelect').value,
-                        icon: iconUsed,
-                        element: wordCard
-                    });
-                } catch (error) {
-                    console.error(`Error for "${targetWord}":`, error);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 100));
-            }
-
-            document.getElementById('downloadImagesBtn').disabled = false;
-            document.getElementById('cardsCount').textContent = generatedImages.length;
-        }
-
-        function downloadSingleImage(fileName, dataURL) {
-            const link = document.createElement('a');
-            link.download = fileName;
-            link.href = dataURL;
-            link.click();
-        }
-
-        async function downloadAllImages() {
-            if (generatedImages.length === 0) {
-                alert('Generate images first!');
-                return;
-            }
-
-            const zip = new JSZip();
-            const imgFolder = zip.folder("images");
-
-            generatedImages.forEach(img => {
-                const base64Data = img.data.split(',')[1];
-                imgFolder.file(img.name, base64Data, {base64: true});
-            });
-
-            const content = await zip.generateAsync({type: "blob"});
-            saveAs(content, "ar-cards-images.zip");
-        }
-
-        // ==================== CARD EDITING ====================
-
-        function selectCardForEdit(index, lang) {
-            const card = cardsArray[index];
-            if (!card) return;
-
-            // Remove selection from all cards
-            cardsArray.forEach(c => {
-                if (c.element) c.element.classList.remove('selected');
-            });
-
-            // Select this card and its pair
-            selectedCardIndex = index;
-            card.element.classList.add('selected');
-            
-            // Find and select paired card
-            const enCount = cardsArray.filter(c => c.lang === 'en').length;
-            let pairCard = null;
-            
-            if (lang === 'en') {
-                // Current is English, find Target Language pair
-                const wordIndex = cardsArray.filter((c, i) => i < enCount && c.lang === 'en').indexOf(card);
-                pairCard = cardsArray[enCount + wordIndex];
-            } else {
-                // Current is Target Language, find English pair
-                const targetIndex = index - enCount;
-                pairCard = cardsArray[targetIndex];
-            }
-            
-            if (pairCard) {
-                pairCard.element.classList.add('selected');
-            }
-
-            // Set preview word to card's word
-            document.getElementById('previewWord').value = card.word;
-
-            // Select the icon that was used for this card
-            selectedIcon = card.icon;
-
-            // Update icon grid to show current selection
-            searchIcons();
-
-            // Generate preview with current settings
-            generatePreview();
-
-            // Show save button and label
-            document.getElementById('saveCardIconBtn').style.display = 'inline-block';
-            document.getElementById('editingCardLabel').style.display = 'inline';
-            document.getElementById('editingCardLabel').innerHTML = `✏️ Editing: ${lang === 'en' ? getFlagForLanguage('en-gb') : getFlagForLanguage(card.lang)} ${card.word}`;
-        }
-
-        async function saveCardIcon() {
-            if (selectedCardIndex === null) {
-                alert('Please select a card to edit first');
-                return;
-            }
-
-            const card = cardsArray[selectedCardIndex];
-            const newIcon = selectedIcon;
-
-            // Find paired card by matching word index
-            // Cards are created: [EN0, EN1, EN2...] + [Target0, Target1, Target2...]
-            const enCount = cardsArray.filter(c => c.lang === 'en').length;
-            let pairCard = null;
-            
-            if (card.lang === 'en') {
-                // Current is English, find Target Language pair
-                const wordIndex = cardsArray.filter((c, i) => i < enCount && c.lang === 'en').indexOf(card);
-                pairCard = cardsArray[enCount + wordIndex];
-            } else {
-                // Current is Target Language, find English pair
-                const targetIndex = cardsArray.findIndex((c, i) => i >= enCount && c.lang !== 'en' && c.word === card.word);
-                const wordIndex = targetIndex - enCount;
-                pairCard = cardsArray[wordIndex];
-            }
-
-            try {
-                const config = getImageConfig();
-                
-                // Update current card
-                await updateCardIcon(card, newIcon, config);
-                
-                // Update paired card if exists
-                if (pairCard) {
-                    await updateCardIcon(pairCard, newIcon, config);
-                }
-
-                // Remove selection
-                card.element.classList.remove('selected');
-                if (pairCard) pairCard.element.classList.remove('selected');
-                selectedCardIndex = null;
-
-                // Hide save button and label
-                document.getElementById('saveCardIconBtn').style.display = 'none';
-                document.getElementById('editingCardLabel').style.display = 'none';
-
-            } catch (error) {
-                console.error('Error updating icon:', error);
-            }
-        }
-
-        async function updateCardIcon(card, icon, config) {
-            const canvas = document.createElement('canvas');
-            canvas.width = config.width;
-            canvas.height = config.height;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = config.backgroundColor;
-            ctx.fillRect(0, 0, config.width, config.height);
-
-            const iconDataURL = await loadIcon(icon, selectedIconSource, config.iconColor, config.iconSize);
-            const iconImg = new Image();
-            iconImg.src = iconDataURL;
-
-            await new Promise((resolve, reject) => {
-                iconImg.onload = resolve;
-                iconImg.onerror = reject;
-            });
-
-            let iconX, iconY, textX, textY;
-            const padding = 20;
-
-            switch (selectedLayout) {
-                case 'top':
-                    iconX = (config.width - config.iconSize) / 2;
-                    iconY = padding;
-                    textX = config.width / 2;
-                    textY = config.height / 2 + config.iconSize / 2;
-                    break;
-                case 'bottom':
-                    iconX = (config.width - config.iconSize) / 2;
-                    iconY = config.height - config.iconSize - padding;
-                    textX = config.width / 2;
-                    textY = config.height / 2 - config.iconSize / 2;
-                    break;
-            }
-
-            ctx.drawImage(iconImg, iconX, iconY, config.iconSize, config.iconSize);
-            ctx.font = `bold ${config.fontSize}px Arial`;
-            ctx.fillStyle = config.textColor;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(card.word, textX, textY);
-
-            const newDataURL = canvas.toDataURL('image/jpeg', 0.95);
-
-            // Update card data
-            card.icon = icon;
-
-            // Update image in generatedImages
-            const imgIndex = generatedImages.findIndex(img => img.word === card.word && img.lang === card.lang);
-            if (imgIndex !== -1) {
-                generatedImages[imgIndex].data = newDataURL;
-            }
-
-            // Update card element
-            const imgElement = card.element.querySelector('img');
-            imgElement.src = newDataURL;
-
-            // Update download button
-            const downloadBtn = card.element.querySelector('button[onclick^="downloadSingleImage"]');
-            const newFileName = imgIndex !== -1 ? generatedImages[imgIndex].name : card.word.replace(/\s+/g, '_') + '.jpg';
-            downloadBtn.setAttribute('onclick', `downloadSingleImage('${newFileName}', '${newDataURL}')`);
-        }
-
-        // ==================== AUDIO GENERATION ====================
-
-        function playWord(word, language) {
-            const apiKey = document.getElementById('apiKeyInput').value.trim();
-            if (!apiKey) {
-                alert('Please enter your VoiceRSS API key first!');
-                return;
-            }
-
-            const voiceRSSUrl = `https://api.voicerss.org/?key=${apiKey}&hl=${language}&src=${encodeURIComponent(word)}&f=22khz_16bit_stereo&c=mp3`;
-            const audio = new Audio(voiceRSSUrl);
-            audio.play().catch(error => {
-                console.error('Error playing audio:', error);
-                alert('Error playing audio. Please check your API key and try again.');
-            });
-        }
-
-        async function generateAllAudio() {
-            const enWordsText = document.getElementById('enWordsInput').value;
-            const targetWordsText = document.getElementById('targetWordsInput').value;
-
-            const enWords = enWordsText.split('\n').filter(w => w.trim() !== '');
-            const targetWords = targetWordsText.split('\n').filter(w => w.trim() !== '');
-            const targetLanguage = document.getElementById('targetLanguageSelect').value;
-
-            if (enWords.length === 0 || targetWords.length === 0) {
-                alert('Enter at least one word in both lists!');
-                return;
-            }
-
-            const apiKey = document.getElementById('apiKeyInput').value.trim();
-            if (!apiKey) {
-                alert('Please enter your VoiceRSS API key!');
-                return;
-            }
-
-            generatedAudio = [];
-
-            // Generate English audio files
-            for (let i = 0; i < enWords.length; i++) {
-                const enWord = enWords[i].trim();
-
-                try {
-                    const enAudioBlob = await fetchVoiceRSS(enWord, 'en-us', apiKey);
-                    const enFileName = `en_${enWord.replace(/\s+/g, '_')}.mp3`;
-                    generatedAudio.push({ name: enFileName, data: enAudioBlob, lang: 'en' });
-                } catch (error) {
-                    console.error(`Error generating English audio for "${enWord}":`, error);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
-
-            // Generate target language audio files
-            for (let i = 0; i < targetWords.length; i++) {
-                const targetWord = targetWords[i].trim();
-
-                try {
-                    const targetAudioBlob = await fetchVoiceRSS(targetWord, targetLanguage, apiKey);
-                    const targetFileName = `${targetLanguage}_${targetWord.replace(/\s+/g, '_')}.mp3`;
-                    generatedAudio.push({ name: targetFileName, data: targetAudioBlob, lang: targetLanguage });
-                } catch (error) {
-                    console.error(`Error generating target audio for "${targetWord}":`, error);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 300));
-            }
-
-            document.getElementById('downloadAudioBtn').disabled = false;
-            
-            // Enable all play buttons on cards
-            document.querySelectorAll('.word-card-buttons button[onclick^="playWord"]').forEach(btn => {
-                btn.disabled = false;
-            });
-        }
-
-        function fetchVoiceRSS(text, language, apiKey) {
-            return new Promise((resolve, reject) => {
-                const voiceRSSUrl = `https://api.voicerss.org/?key=${apiKey}&hl=${language}&src=${encodeURIComponent(text)}&f=22khz_16bit_stereo&c=mp3`;
-
-                fetch(voiceRSSUrl)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`VoiceRSS API error! status: ${response.status}`);
-                        }
-                        return response.blob();
-                    })
-                    .then(blob => {
-                        if (blob.size > 1000) {
-                            resolve(blob);
-                        } else {
-                            throw new Error('Received invalid audio data');
-                        }
-                    })
-                    .catch(error => {
-                        reject(error);
-                    });
-            });
-        }
-
-        async function downloadAllAudio() {
-            if (generatedAudio.length === 0) {
-                alert('Generate audio first!');
-                return;
-            }
-
-            const zip = new JSZip();
-            const audioFolder = zip.folder("audio");
-
-            generatedAudio.forEach(audio => {
-                audioFolder.file(audio.name, audio.data);
-            });
-
-            const content = await zip.generateAsync({type: "blob"});
-            saveAs(content, "ar-cards-audio.zip");
-        }
-
-        // ==================== INITIALIZATION ====================
-
-        function updateTargetFlag() {
-            const language = document.getElementById('targetLanguageSelect').value;
-            const flagSvg = document.getElementById('targetFlagSvg');
-
-            const flagMap = {
-                'pt-pt': `<svg viewBox="0 0 90 60"><rect width="90" height="60" fill="#006600"/><rect x="36" y="0" width="54" height="60" fill="#ff0000"/><circle cx="36" cy="30" r="18" fill="#ffcc00"/><path d="M30,30 L30,24 L42,30 L30,36 Z" fill="#006600"/></svg>`,
-                'pt-br': `<svg viewBox="0 0 100 70"><rect width="100" height="70" fill="#009c3b"/><polygon points="50,10 90,35 50,60 10,35" fill="#ffdf00"/><circle cx="50" cy="35" r="15" fill="#002776"/></svg>`,
-                'pl-pl': `<svg viewBox="0 0 80 50"><rect width="80" height="25" fill="#fff"/><rect y="25" width="80" height="25" fill="#dc143c"/></svg>`,
-                'de-de': `<svg viewBox="0 0 90 60"><rect width="90" height="20" fill="#000"/><rect y="20" width="90" height="20" fill="#dd0000"/><rect y="40" width="90" height="20" fill="#ffce00"/></svg>`,
-                'en-us': `<svg viewBox="0 0 90 60"><rect width="90" height="60" fill="#b22234"/><rect y="0" width="90" height="60" fill="#fff" stroke="#b22234" stroke-width="9.23"/><rect width="36" height="32.31" fill="#3c3b6e"/></svg>`,
-                'en-gb': `<svg viewBox="0 0 60 40"><rect width="60" height="40" fill="#012169"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#fff" stroke-width="8"/><path d="M0,0 L60,40 M60,0 L0,40" stroke="#C8102E" stroke-width="5" fill="none"/><rect x="0" y="16" width="60" height="8" fill="#fff"/><rect x="26" y="0" width="8" height="40" fill="#fff"/><rect x="0" y="18" width="60" height="4" fill="#C8102E"/><rect x="28" y="0" width="4" height="40" fill="#C8102E"/></svg>`,
-                'es-es': `<svg viewBox="0 0 90 60"><rect width="90" height="60" fill="#aa151b"/><rect y="15" width="90" height="30" fill="#f1bf00"/></svg>`,
-                'fr-fr': `<svg viewBox="0 0 90 60"><rect width="30" height="60" fill="#0055a4"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#ef4135"/></svg>`,
-                'it-it': `<svg viewBox="0 0 90 60"><rect width="30" height="60" fill="#008c45"/><rect x="30" width="30" height="60" fill="#fff"/><rect x="60" width="30" height="60" fill="#cd212a"/></svg>`
-            };
-
-            flagSvg.innerHTML = flagMap[language] || '<circle cx="12" cy="12" r="10" fill="#667eea"/>';
-        }
-
-        // ==================== AUTO TRANSLATE ====================
-
-        async function autoTranslate() {
-            const enWordsText = document.getElementById('enWordsInput').value.trim();
-            const targetLang = document.getElementById('targetLanguageSelect').value;
-            
-            if (!enWordsText) {
-                alert('Please enter English words first!');
-                return;
-            }
-
-            const enWords = enWordsText.split('\n').filter(w => w.trim() !== '');
-            if (enWords.length === 0) {
-                alert('No valid English words found!');
-                return;
-            }
-
-            // Show progress
-            const progressContainer = document.getElementById('translateProgress');
-            const progressFill = document.getElementById('translateProgressFill');
-            const progressText = document.getElementById('translateProgressText');
-            const statusText = document.getElementById('translateStatus');
-            
-            progressContainer.style.display = 'block';
-            const translatedWords = [];
-            let errors = 0;
-
-            // Translate each word
-            for (let i = 0; i < enWords.length; i++) {
-                const word = enWords[i].trim();
-                
-                // Update progress
-                const percent = ((i + 1) / enWords.length) * 100;
-                progressFill.style.width = `${percent}%`;
-                progressText.textContent = `${i + 1}/${enWords.length}`;
-                statusText.textContent = `Translating "${word}"...`;
-
-                // Translate using MyMemory API (en-GB for better compatibility)
-                try {
-                    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en-GB|${targetLang}`;
-                    const response = await fetch(url);
-                    const data = await response.json();
-
-                    console.log(`Translation for "${word}":`, data);
-
-                    if (data.responseStatus === 200 && data.responseData) {
-                        let translation = data.responseData.translatedText;
-                        
-                        console.log(`Raw translation: "${translation}"`);
-
-                        // Clean translation: remove trailing numbers (match scores) and punctuation
-                        translation = translation.replace(/\s+\d+\.?\d*$/, '').trim();
-                        translation = translation.replace(/[.,!?;:]+$/, '').trim();
-
-                        // Remove gender markers like "(a)", "(o)", "(a) *", etc.
-                        translation = translation.replace(/\s*\([ao]\)\s*\*?\s*$/i, '').trim();
-                        translation = translation.replace(/\s*\*\s*$/g, '').trim();
-
-                        // Remove other common artifacts
-                        translation = translation.replace(/\s*\(.*?\)\s*$/g, '').trim();
-                        
-                        console.log(`Cleaned translation: "${translation}"`);
-
-                        // Validate: if result is empty, same as source, or just numbers, it's invalid
-                        if (!translation || translation.toLowerCase() === word.toLowerCase() || /^\d+\.?\d*$/.test(translation)) {
-                            console.warn(`Invalid translation for "${word}": "${translation}"`);
-                            
-                            // Try alternative translations if available
-                            if (data.responseData.alternativeTranslations) {
-                                const alternatives = data.responseData.alternativeTranslations.split('|');
-                                for (const alt of alternatives) {
-                                    let cleanAlt = alt.trim().replace(/\s+\d+\.?\d*$/, '').trim();
-                                    cleanAlt = cleanAlt.replace(/\s*\([ao]\)\s*\*?\s*$/i, '').trim();
-                                    if (!/^\d+\.?\d*$/.test(cleanAlt) && cleanAlt.length > 0 && cleanAlt.toLowerCase() !== word.toLowerCase()) {
-                                        translation = cleanAlt;
-                                        console.log(`Using alternative: "${translation}"`);
-                                        break;
-                                    }
-                                }
-                            }
-
-                            // If still invalid, try retry with different language variant
-                            if (!translation || translation.toLowerCase() === word.toLowerCase() || /^\d+\.?\d*$/.test(translation)) {
-                                console.log(`targetLang value: "${targetLang}"`);
-                                
-                                // Map language variants for retry (lowercase for comparison)
-                                const langRetryMap = {
-                                    'pt-pt': 'pt-br',
-                                    'pt-br': 'pt-pt',
-                                    'es-es': 'es-mx',
-                                    'es-mx': 'es-es'
-                                };
-
-                                const retryLang = langRetryMap[targetLang.toLowerCase()];
-                                console.log(`retryLang: "${retryLang}"`);
-                                
-                                if (retryLang) {
-                                    console.log(`Retrying with ${retryLang}...`);
-                                    try {
-                                        const retryUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(word)}&langpair=en-GB|${retryLang}`;
-                                        const retryResponse = await fetch(retryUrl);
-                                        const retryData = await retryResponse.json();
-
-                                        if (retryData.responseStatus === 200 && retryData.responseData) {
-                                            let retryTranslation = retryData.responseData.translatedText;
-                                            retryTranslation = retryTranslation.replace(/\s+\d+\.?\d*$/, '').trim();
-                                            retryTranslation = retryTranslation.replace(/[.,!?;:]+$/, '').trim();
-                                            retryTranslation = retryTranslation.replace(/\s*\([ao]\)\s*\*?\s*$/i, '').trim();
-                                            retryTranslation = retryTranslation.replace(/\s*\*\s*$/g, '').trim();
-                                            retryTranslation = retryTranslation.replace(/\s*\(.*?\)\s*$/g, '').trim();
-
-                                            if (retryTranslation && retryTranslation.toLowerCase() !== word.toLowerCase() && !/^\d+\.?\d*$/.test(retryTranslation)) {
-                                                translation = retryTranslation;
-                                                console.log(`Retry succeeded: "${translation}"`);
-                                            } else {
-                                                console.log(`Retry returned: "${retryTranslation}" (still invalid)`);
-                                            }
-                                        }
-                                    } catch (retryError) {
-                                        console.warn(`Retry failed for "${word}":`, retryError);
-                                    }
-                                } else {
-                                    console.log(`No retry variant for "${targetLang}"`);
-                                }
-                            }
-                            
-                            // If still invalid, keep original
-                            if (!translation || translation.toLowerCase() === word.toLowerCase() || /^\d+\.?\d*$/.test(translation)) {
-                                console.warn(`Keeping original for "${word}"`);
-                                translation = word;
-                            }
-                        }
-
-                        translatedWords.push(translation);
-                    } else {
-                        console.warn(`Translation API error for "${word}": status ${data.responseStatus}`);
-                        translatedWords.push(word); // Keep original on error
-                        errors++;
-                    }
-                } catch (error) {
-                    translatedWords.push(word);
-                    errors++;
-                }
-
-                // Delay between requests (avoid rate limiting)
-                if (i < enWords.length - 1) {
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-            }
-
-            // Set translated words
-            document.getElementById('targetWordsInput').value = translatedWords.join('\n');
-            
-            // Update progress
-            statusText.textContent = errors > 0 
-                ? `✅ Complete with ${errors} error(s)` 
-                : '✅ Translation complete!';
-            statusText.style.color = errors > 0 ? '#f5576c' : '#11998e';
-
-            // Hide progress after 3 seconds
-            setTimeout(() => {
-                progressContainer.style.display = 'none';
-            }, 3000);
-        }
-
-        // ==================== AR CONFIG (config.json) ====================
-
-        // Word pairs from the two lists, with the same file names the generator uses
-        function getWordPairs() {
-            const enWords = document.getElementById('enWordsInput').value.split('\n').map(w => w.trim()).filter(Boolean);
-            const targetWords = document.getElementById('targetWordsInput').value.split('\n').map(w => w.trim()).filter(Boolean);
-            const targetLang = document.getElementById('targetLanguageSelect').value;
-
-            if (enWords.length === 0 || targetWords.length === 0) {
-                throw new Error('Enter at least one word in both lists.');
-            }
-            if (enWords.length !== targetWords.length) {
-                throw new Error(`Word count mismatch! English: ${enWords.length}, Target: ${targetWords.length}.`);
-            }
-
-            return enWords.map((enWord, i) => ({
-                source: {
-                    lang: 'en',
-                    word: enWord,
-                    image: ARConfig.imageFileName('en', enWord),
-                    audio: ARConfig.audioFileName('en', enWord)
+            return terms.map((term, i) => ({
+                term: {
+                    text: term,
+                    image: ARConfig.imageFileName(i, 'term', term),
+                    audio: ARConfig.audioFileName(i, 'term', term)
                 },
-                target: {
-                    lang: targetLang,
-                    word: targetWords[i],
-                    image: ARConfig.imageFileName(targetLang, targetWords[i]),
-                    audio: ARConfig.audioFileName(targetLang, targetWords[i])
+                definition: {
+                    text: definitions[i],
+                    image: ARConfig.imageFileName(i, 'definition', term),
+                    audio: ARConfig.audioFileName(i, 'definition', term)
                 }
             }));
         }
 
-        function showConfigStatus(lines, type) {
-            const colors = { ok: '#11998e', warn: '#b26a00', error: '#f5576c' };
-            const status = document.getElementById('arConfigStatus');
-            status.style.color = colors[type] || '#333';
-            status.innerHTML = lines.map(l => `<div>${ARConfig.escapeHtml(l)}</div>`).join('');
+        function updatePairCount() {
+            const t = readLines('termsInput').length;
+            const d = readLines('definitionsInput').length;
+            $('pairCount').textContent = t === d ? `(${t} pairs)` : `(${t} terms / ${d} definitions — must match)`;
+            $('pairCount').style.color = t === d ? '' : '#f5576c';
         }
 
+        // "Term — Definition" (or "Term - Definition", "Term: Definition", tab) lines -> two lists
+        function splitPastedPairs() {
+            const lines = $('termsInput').value.split('\n').map(l => l.trim()).filter(Boolean);
+            const terms = [], definitions = [];
+            const bad = [];
+            lines.forEach(line => {
+                const m = /^(.+?)\s*(?:\t|\s[—–-]\s|:\s)\s*(.+)$/.exec(line);
+                if (m) { terms.push(m[1].trim()); definitions.push(m[2].trim()); }
+                else bad.push(line);
+            });
+            if (bad.length) {
+                alert(`Could not split ${bad.length} line(s):\n${bad.slice(0, 5).join('\n')}\nUse "Term — Definition".`);
+                return;
+            }
+            $('termsInput').value = terms.join('\n');
+            $('definitionsInput').value = definitions.join('\n');
+            updatePairCount();
+            drawPreviews();
+        }
+
+        // ==================== CARD DRAWING ====================
+
+        function getDesign() {
+            const size = Math.max(128, Math.min(2048, parseInt($('imgSize').value, 10) || 512));
+            return {
+                size,
+                background: $('backgroundColor').value,
+                textColor: $('textColor').value,
+                termColor: $('termColor').value,
+                definitionColor: $('definitionColor').value,
+                termLetter: $('termLetter').value.trim() || 'Т',
+                definitionLetter: $('definitionLetter').value.trim() || 'В',
+                termFontSize: parseInt($('termFontSize').value, 10) || 72,
+                definitionFontSize: parseInt($('definitionFontSize').value, 10) || 44
+            };
+        }
+
+        // Splits text into lines that fit maxWidth (long words are broken by characters)
+        function wrapText(ctx, text, maxWidth) {
+            const lines = [];
+            String(text).split(/\n/).forEach(paragraph => {
+                let line = '';
+                paragraph.split(/\s+/).filter(Boolean).forEach(word => {
+                    const candidate = line ? `${line} ${word}` : word;
+                    if (ctx.measureText(candidate).width <= maxWidth) {
+                        line = candidate;
+                        return;
+                    }
+                    if (line) lines.push(line);
+                    // Break a word that is wider than the line on its own
+                    line = '';
+                    let chunk = '';
+                    for (const ch of word) {
+                        if (ctx.measureText(chunk + ch).width > maxWidth && chunk) {
+                            lines.push(chunk);
+                            chunk = '';
+                        }
+                        chunk += ch;
+                    }
+                    line = chunk;
+                });
+                if (line) lines.push(line);
+            });
+            return lines;
+        }
+
+        // Draws wrapped text centred in the box, shrinking the font until it fits
+        function drawFittedText(ctx, text, box, maxFont, weight, color) {
+            let fontSize = maxFont;
+            let lines = [];
+            const lineHeight = () => fontSize * 1.25;
+            for (; fontSize >= 10; fontSize -= 2) {
+                ctx.font = `${weight} ${fontSize}px Arial, Helvetica, sans-serif`;
+                lines = wrapText(ctx, text, box.width);
+                if (lines.length * lineHeight() <= box.height) break;
+            }
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const total = lines.length * lineHeight();
+            let y = box.y + (box.height - total) / 2 + lineHeight() / 2;
+            lines.forEach(line => {
+                ctx.fillText(line, box.x + box.width / 2, y);
+                y += lineHeight();
+            });
+        }
+
+        // Card: coloured badge with a letter in the top-left corner, text below
+        function drawCard(canvas, kind, text, design) {
+            const s = design.size;
+            canvas.width = s;
+            canvas.height = s;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = design.background;
+            ctx.fillRect(0, 0, s, s);
+
+            // kind: 'term' | 'definition' | 'question-term' | 'question-definition'
+            const isTerm = kind === 'term' || kind === 'question-term';
+            const color = isTerm ? design.termColor : design.definitionColor;
+            const letter = isTerm ? design.termLetter : design.definitionLetter;
+            const pad = s * 0.06;
+            const badge = s * 0.18;
+
+            // Frame in the badge colour so cards are easy to tell apart
+            ctx.strokeStyle = color;
+            ctx.lineWidth = s * 0.02;
+            ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, s - ctx.lineWidth, s - ctx.lineWidth);
+
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(pad + badge / 2, pad + badge / 2, badge / 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.round(badge * 0.62)}px Arial, Helvetica, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(letter, pad + badge / 2, pad + badge / 2 + badge * 0.04);
+
+            const box = { x: pad, y: pad + badge + pad * 0.5, width: s - pad * 2, height: s - badge - pad * 2.5 };
+            if (kind.startsWith('question')) {
+                drawFittedText(ctx, '?', box, Math.round(s * 0.5), 'bold', color);
+            } else if (kind === 'term') {
+                drawFittedText(ctx, text, box, Math.round(design.termFontSize * s / 512), 'bold', design.textColor);
+            } else {
+                drawFittedText(ctx, text, box, Math.round(design.definitionFontSize * s / 512), 'normal', design.textColor);
+            }
+            return canvas;
+        }
+
+        function cardDataURL(kind, text, design) {
+            return drawCard(document.createElement('canvas'), kind, text, design).toDataURL('image/jpeg', 0.92);
+        }
+
+        function drawPreviews() {
+            const design = getDesign();
+            const terms = readLines('termsInput');
+            const definitions = readLines('definitionsInput');
+            drawCard($('previewTerm'), 'term', terms[0] || 'Термін', design);
+            drawCard($('previewDefinition'), 'definition', definitions[0] || 'Визначення терміна', design);
+            drawCard($('previewQuestionTerm'), 'question-term', '?', design);
+            drawCard($('previewQuestionDefinition'), 'question-definition', '?', design);
+        }
+
+        // Both "?" images (term and definition), named as the config expects
+        function questionImages(design) {
+            return [
+                [ARConfig.questionFileName('term'), cardDataURL('question-term', '?', design)],
+                [ARConfig.questionFileName('definition'), cardDataURL('question-definition', '?', design)]
+            ];
+        }
+
+        // Prompts from the AR settings: what is spoken before the card text
+        function getPrompts() {
+            const o = ARConfig.readSettingsForm($('arConfigSettings'));
+            return { term: o.termPrompt, definition: o.definitionPrompt };
+        }
+
+        // ==================== IMAGES ====================
+
+        function setProgress(id, done, total) {
+            const bar = $(id);
+            bar.style.display = total ? 'block' : 'none';
+            bar.firstElementChild.style.width = total ? `${Math.round(done / total * 100)}%` : '0';
+        }
+
+        function showStatus(id, lines) {
+            $(id).innerHTML = lines.map(([type, text]) => `<div class="${type}">${esc(text)}</div>`).join('');
+        }
+
+        async function generateAllImages() {
+            let pairs;
+            try {
+                pairs = getPairs();
+            } catch (e) {
+                showStatus('imageStatus', [['error', `❌ ${e.message}`]]);
+                return;
+            }
+            const design = getDesign();
+            // Remove images of a previous generation (audio stays)
+            Array.from(media.keys()).forEach(name => { if (media.get(name).kind === 'image') media.delete(name); });
+
+            for (let i = 0; i < pairs.length; i++) {
+                const p = pairs[i];
+                media.set(p.term.image, { kind: 'image', data: cardDataURL('term', p.term.text, design) });
+                media.set(p.definition.image, { kind: 'image', data: cardDataURL('definition', p.definition.text, design) });
+                setProgress('imageProgress', i + 1, pairs.length);
+                await new Promise(r => setTimeout(r, 0)); // keep the page responsive
+            }
+            questionImages(design).forEach(([name, data]) => media.set(name, { kind: 'image', data }));
+
+            generatedPairs = pairs;
+            setTimeout(() => setProgress('imageProgress', 0, 0), 600);
+            showStatus('imageStatus', [['ok', `✅ ${pairs.length * 2 + 2} images: ${pairs.length} term cards, ${pairs.length} definition cards and two "?" cards.`]]);
+            renderPairs();
+        }
+
+        // ==================== AUDIO ====================
+
+        function getEngine() {
+            return $('ttsEngine').value;
+        }
+
+        function updateEngineFields() {
+            const engine = getEngine();
+            document.querySelectorAll('.engine-piper').forEach(el => el.style.display = engine === 'piper' ? '' : 'none');
+            document.querySelectorAll('.engine-voicerss').forEach(el => el.style.display = engine === 'voicerss' ? '' : 'none');
+        }
+
+        // Piper module is an ES module (utils/piper-tts.js) that sets window.PiperTTS when loaded
+        function piperReady() {
+            if (window.PiperTTS) return Promise.resolve(window.PiperTTS);
+            return new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('Piper module did not load')), 15000);
+                window.addEventListener('piper-tts-ready', () => { clearTimeout(timer); resolve(window.PiperTTS); }, { once: true });
+            });
+        }
+
+        async function fillPiperVoices() {
+            const P = await piperReady();
+            const cached = await P.cachedVoiceIds();
+            const selected = $('piperVoice').value || P.VOICES[0].id;
+            $('piperVoice').innerHTML = P.VOICES.map(v =>
+                `<option value="${v.id}" ${v.id === selected ? 'selected' : ''}>${esc(v.label)} — ${cached.includes(v.id) ? 'downloaded' : v.sizeMB + ' MB'}</option>`
+            ).join('');
+        }
+
+        // Shows model download progress in the audio progress bar
+        function piperDownloadProgress(statusLines) {
+            return ({ loaded, total }) => {
+                if (!total) return;
+                setProgress('audioProgress', loaded, total);
+                showStatus('audioStatus', (statusLines || []).concat([['ok',
+                    `⬇️ Downloading the voice: ${(loaded / 1e6).toFixed(0)} / ${(total / 1e6).toFixed(0)} MB (only the first time)…`]]));
+            };
+        }
+
+        // One text -> MP3 Blob with the selected engine
+        async function synthesizeOne(text, onDownload) {
+            if (getEngine() === 'piper') {
+                const P = await piperReady();
+                return P.speakToMp3(text, {
+                    voiceId: $('piperVoice').value,
+                    rate: parseFloat($('piperRate').value) || 1,
+                    onProgress: onDownload
+                });
+            }
+            const apiKey = $('apiKeyInput').value.trim();
+            if (!apiKey) throw new Error('Enter your VoiceRSS API key.');
+            return fetchVoiceRSS(text, $('voiceLanguage').value, apiKey);
+        }
+
+        function voiceDescription() {
+            if (getEngine() === 'piper') {
+                const voice = (window.PiperTTS ? window.PiperTTS.VOICES : []).find(v => v.id === $('piperVoice').value);
+                return `Piper: ${voice ? voice.label : $('piperVoice').value}`;
+            }
+            return `VoiceRSS: ${$('voiceLanguage').value}`;
+        }
+
+        async function testVoice() {
+            const term = readLines('termsInput')[0];
+            if (!term) {
+                showStatus('audioStatus', [['error', '❌ Enter at least one term.']]);
+                return;
+            }
+            showStatus('audioStatus', [['ok', '⏳ Preparing the voice…']]);
+            try {
+                const spoken = ARConfig.spokenText(getPrompts().term, term);
+                const blob = await synthesizeOne(spoken, piperDownloadProgress());
+                setProgress('audioProgress', 0, 0);
+                if (currentAudio) currentAudio.pause();
+                currentAudio = new Audio(URL.createObjectURL(blob));
+                currentAudio.play();
+                showStatus('audioStatus', [['ok', `▶ "${spoken}" — ${voiceDescription()}`]]);
+                if (getEngine() === 'piper') fillPiperVoices();
+            } catch (e) {
+                setProgress('audioProgress', 0, 0);
+                showStatus('audioStatus', [['error', `❌ ${e.message}`]]);
+            }
+        }
+
+        async function fetchVoiceRSS(text, language, apiKey) {
+            const url = `https://api.voicerss.org/?key=${encodeURIComponent(apiKey)}&hl=${language}&src=${encodeURIComponent(text)}&f=22khz_16bit_stereo&c=mp3`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`VoiceRSS error ${response.status}`);
+            const blob = await response.blob();
+            // VoiceRSS reports errors as short text bodies ("ERROR: ...")
+            if (blob.size < 1000) throw new Error((await blob.text()).slice(0, 120) || 'Invalid audio data');
+            return blob;
+        }
+
+        async function generateAllAudio() {
+            let pairs;
+            try {
+                pairs = getPairs();
+            } catch (e) {
+                showStatus('audioStatus', [['error', `❌ ${e.message}`]]);
+                return;
+            }
+            if (getEngine() === 'voicerss' && !$('apiKeyInput').value.trim()) {
+                showStatus('audioStatus', [['error', '❌ Enter your VoiceRSS API key.']]);
+                return;
+            }
+            const prompts = getPrompts();
+            const jobs = [];
+            pairs.forEach(p => {
+                // Spoken: "Дайте визначення терміну: Атом" / "Якому терміну відповідає визначення: …"
+                jobs.push({ name: p.term.audio, text: ARConfig.spokenText(prompts.term, p.term.text) });
+                jobs.push({ name: p.definition.audio, text: ARConfig.spokenText(prompts.definition, p.definition.text) });
+            });
+
+            const errors = [];
+            for (let i = 0; i < jobs.length; i++) {
+                showStatus('audioStatus', [['ok', `⏳ ${i + 1} / ${jobs.length}: ${jobs[i].name}`]]);
+                try {
+                    const blob = await synthesizeOne(jobs[i].text, piperDownloadProgress([['ok', `⏳ ${i + 1} / ${jobs.length}: ${jobs[i].name}`]]));
+                    const old = media.get(jobs[i].name);
+                    if (old && old.url) URL.revokeObjectURL(old.url);
+                    media.set(jobs[i].name, { kind: 'audio', data: blob });
+                } catch (e) {
+                    errors.push(`${jobs[i].name}: ${e.message}`);
+                }
+                setProgress('audioProgress', i + 1, jobs.length);
+                // VoiceRSS has a rate limit; Piper just needs the page to stay responsive
+                await new Promise(r => setTimeout(r, getEngine() === 'voicerss' ? 250 : 0));
+            }
+            setTimeout(() => setProgress('audioProgress', 0, 0), 600);
+            if (getEngine() === 'piper') fillPiperVoices();
+            const lines = [['ok', `✅ ${jobs.length - errors.length} of ${jobs.length} audio files (${voiceDescription()}).`]];
+            errors.slice(0, 5).forEach(e => lines.push(['error', `❌ ${e}`]));
+            showStatus('audioStatus', lines);
+            renderPairs();
+        }
+
+        // ==================== RESULTS ====================
+
+        function mediaURL(name) {
+            const item = media.get(name);
+            if (!item) return null;
+            if (typeof item.data === 'string') return item.data;
+            if (!item.url) item.url = URL.createObjectURL(item.data);
+            return item.url;
+        }
+
+        function downloadMedia(name) {
+            const url = mediaURL(name);
+            if (!url) return;
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = name;
+            link.click();
+        }
+
+        let currentAudio = null;
+        function playMedia(name) {
+            const url = mediaURL(name);
+            if (!url) return;
+            if (currentAudio) currentAudio.pause();
+            currentAudio = new Audio(url);
+            currentAudio.play();
+        }
+
+        function renderPairs() {
+            const pairs = generatedPairs;
+            $('cardsCount').textContent = pairs.length ? `(${pairs.length} pairs)` : '';
+            if (!pairs.length) {
+                $('pairsList').innerHTML = '<div class="empty">Generate the card images to see them here.</div>';
+                return;
+            }
+            const card = (side, label) => {
+                const img = mediaURL(side.image);
+                const hasAudio = media.has(side.audio);
+                return `<figure>
+                    ${img ? `<img src="${img}" alt="${esc(side.text)}">` : '<div class="empty">no image</div>'}
+                    <figcaption>
+                        <button class="btn btn-small" onclick="downloadMedia('${esc(side.image)}')" title="Download image">📥</button>
+                        <button class="btn btn-small" onclick="playMedia('${esc(side.audio)}')" ${hasAudio ? '' : 'disabled'} title="Play audio">🔊</button>
+                    </figcaption>
+                </figure>`;
+            };
+            $('pairsList').innerHTML = pairs.map((p, i) => `
+                <div class="pair">
+                    <div class="pair-head"><b>${i + 1}. ${esc(p.term.text)}</b></div>
+                    <div class="pair-cards">${card(p.term)}${card(p.definition)}</div>
+                </div>`).join('');
+        }
+
+        // ==================== AR CONFIG (config.json) ====================
+
         function buildGeneratorConfig() {
-            const pairs = getWordPairs();
-            const options = ARConfig.readSettingsForm(document.getElementById('arConfigSettings'));
+            const pairs = getPairs();
+            const options = ARConfig.readSettingsForm($('arConfigSettings'));
             const result = ARConfig.buildConfig(pairs, options);
             return Object.assign({ pairs, options }, result);
         }
@@ -1972,41 +727,13 @@ Gato
             try {
                 const { config, pairs } = buildGeneratorConfig();
                 ARConfig.downloadText('config.json', ARConfig.stringify(config));
-                showConfigStatus([`✅ config.json: ${pairs.length} word pairs, ${config.markers.length} markers (incl. pointer).`,
-                    'Put it into config/; images and audio go into config/media/ with the generator\'s file names.'], 'ok');
+                showStatus('arConfigStatus', [
+                    ['ok', `✅ config.json: ${pairs.length} pairs, ${config.markers.length} markers (incl. pointer).`],
+                    ['ok', 'Put it into config/; images and audio go into config/media/ with the generator\'s file names.']
+                ]);
             } catch (error) {
-                showConfigStatus([`❌ ${error.message}`], 'error');
+                showStatus('arConfigStatus', [['error', `❌ ${error.message}`]]);
             }
-        }
-
-        // "?" card for the target language, drawn with the current image settings
-        async function generateQuestionImage(lang) {
-            const config = getImageConfig();
-            const canvas = document.createElement('canvas');
-            canvas.width = config.width;
-            canvas.height = config.height;
-            const ctx = canvas.getContext('2d');
-
-            ctx.fillStyle = config.backgroundColor;
-            ctx.fillRect(0, 0, config.width, config.height);
-
-            // Flag in the top-left corner, same as on word cards (wait for it to load)
-            try {
-                const flagImg = new Image();
-                flagImg.src = 'data:image/svg+xml;base64,' + btoa(getSvgFlagForLanguage(lang, 80, 54));
-                await new Promise((resolve, reject) => { flagImg.onload = resolve; flagImg.onerror = reject; });
-                ctx.drawImage(flagImg, 30 - 40, 20 - 27, 80, 54);
-            } catch (e) {
-                console.warn('Could not draw flag for question image', e);
-            }
-
-            ctx.font = `bold ${Math.round(Math.min(config.height * 0.6, config.fontSize * 3))}px Arial`;
-            ctx.fillStyle = config.textColor;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText('?', config.width / 2, config.height / 2 + 10);
-
-            return canvas.toDataURL('image/jpeg', 0.95);
         }
 
         async function downloadArBundle() {
@@ -2014,80 +741,78 @@ Gato
             try {
                 built = buildGeneratorConfig();
             } catch (error) {
-                showConfigStatus([`❌ ${error.message}`], 'error');
+                showStatus('arConfigStatus', [['error', `❌ ${error.message}`]]);
                 return;
             }
             const { config, pairs, options, warnings } = built;
-            const targetLang = document.getElementById('targetLanguageSelect').value;
 
             // Same layout as the app expects: config/config.json + config/media/<files>
-            // (file names in config.json are relative to config/media/)
             const zip = new JSZip();
             const configFolder = zip.folder('config');
-            const media = configFolder.folder('media');
+            const mediaFolder = configFolder.folder('media');
+            const referenced = new Set(ARConfig.referencedFiles(config));
             const added = new Set();
 
-            generatedImages.forEach(img => {
-                media.file(img.name, img.data.split(',')[1], { base64: true });
-                added.add(img.name);
-            });
-            generatedAudio.forEach(audio => {
-                media.file(audio.name, audio.data);
-                added.add(audio.name);
+            media.forEach((item, name) => {
+                if (!referenced.has(name)) return; // e.g. images of an older word list
+                if (typeof item.data === 'string') mediaFolder.file(name, item.data.split(',')[1], { base64: true });
+                else mediaFolder.file(name, item.data);
+                added.add(name);
             });
 
-            // "?" image: generated unless a custom file name is set
-            if (options.useQuestionImage && !options.questionImage) {
-                const name = ARConfig.questionFileName(targetLang);
-                const dataURL = await generateQuestionImage(targetLang);
-                media.file(name, dataURL.split(',')[1], { base64: true });
-                added.add(name);
+            // "?" images are drawn even if card images were not generated yet
+            if (options.hideUntilTouched) {
+                questionImages(getDesign()).forEach(([name, data]) => {
+                    if (referenced.has(name) && !added.has(name)) {
+                        mediaFolder.file(name, data.split(',')[1], { base64: true });
+                        added.add(name);
+                    }
+                });
             }
 
             configFolder.file('config.json', ARConfig.stringify(config));
             configFolder.file(ARConfig.MANIFEST_NAME, JSON.stringify(ARConfig.buildManifest(pairs, {
-                sourceLanguage: 'en',
-                targetLanguage: targetLang
+                voice: voiceDescription(),
+                prompts: { term: options.termPrompt, definition: options.definitionPrompt }
             }), null, 2));
 
-            const missing = ARConfig.referencedFiles(config).filter(f => !added.has(f));
+            const missing = Array.from(referenced).filter(f => !added.has(f));
             const content = await zip.generateAsync({ type: 'blob' });
             saveAs(content, 'ar-cards-bundle.zip');
 
-            const lines = [`✅ Bundle: ${pairs.length} word pairs, ${config.markers.length} markers, ${added.size} files.`];
+            const lines = [['ok', `✅ Bundle: ${pairs.length} pairs, ${config.markers.length} markers, ${added.size} media files.`]];
             if (missing.length) {
-                lines.push(`⚠️ Not in the bundle (${missing.length}): ${missing.join(', ')}`);
-                lines.push('Generate images and audio first, or add these files manually.');
+                lines.push(['warn', `⚠️ Not in the bundle (${missing.length}): ${missing.join(', ')}`]);
+                lines.push(['warn', 'Generate images and audio for the current lists first, or add these files manually.']);
             }
-            warnings.forEach(w => lines.push(`⚠️ ${w}`));
-            showConfigStatus(lines, missing.length ? 'warn' : 'ok');
+            warnings.filter(w => !missing.length || !/audio|image/.test(w)).forEach(w => lines.push(['warn', `⚠️ ${w}`]));
+            showStatus('arConfigStatus', lines);
         }
 
-        window.onload = () => {
-            // AR config settings form
-            ARConfig.renderSettingsForm(document.getElementById('arConfigSettings'));
+        // ==================== INIT ====================
 
-            // Initialize target flag
-            updateTargetFlag();
-            
-            // Preview word input listener
-            let searchTimeout;
-            document.getElementById('previewWord').addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                const word = e.target.value.trim();
-                if (word) {
-                    searchTimeout = setTimeout(() => {
-                        searchIcons();
-                        generatePreview();
-                    }, 300);
-                }
-            });
+        window.addEventListener('load', () => {
+            const select = $('voiceLanguage');
+            select.innerHTML = Object.entries(VOICERSS_LANGUAGES)
+                .map(([code, name]) => `<option value="${code}" ${code === 'en-gb' ? 'selected' : ''}>${name} — ${code}</option>`)
+                .join('');
 
-            // Initialize
-            selectedIconSource = document.getElementById('iconSource').value;
-            searchIcons();
-            generatePreview();
-        };
+            ARConfig.renderSettingsForm($('arConfigSettings'));
+
+            $('ttsEngine').addEventListener('change', updateEngineFields);
+            updateEngineFields();
+            fillPiperVoices().catch(e => showStatus('audioStatus', [['error', `❌ ${e.message}`]]));
+
+            ['termsInput', 'definitionsInput'].forEach(id => $(id).addEventListener('input', () => {
+                updatePairCount();
+                drawPreviews();
+            }));
+            document.querySelectorAll('#imgSize, #backgroundColor, #textColor, #termColor, #definitionColor, #termLetter, #definitionLetter, #termFontSize, #definitionFontSize')
+                .forEach(el => el.addEventListener('input', drawPreviews));
+
+            updatePairCount();
+            drawPreviews();
+        });
     </script>
 </body>
 </html>

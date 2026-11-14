@@ -1,14 +1,21 @@
 /*
- * ARConfig — shared helpers for building ARFlashCard config.json
+ * ARConfig — shared helpers for building ARFlashCard config.json ("Term – Definition" cards)
  *
  * Used by:
- *   - utils/ar-cards-generator.html  (builds config from the word lists it generated)
+ *   - utils/ar-cards-generator.html  (builds config from the term/definition lists it generated)
  *   - utils/config-builder.html      (builds config from a folder of image/audio files)
  *
- * Card layout produced for every word pair (same as the hand-written config.json):
- *   controller marker (pointer)
- *   source card: main = source image, alternative = source image (bigger), audio = source audio
- *   target card: main = question image (or target image), alternative = target image, audio = target audio
+ * Card layout produced for every term–definition pair:
+ *   controller marker (pointer; ignored by the app in "chip" mode)
+ *   term card:       main = "?" (term), alternative = term image, audio = "<term prompt>: <term>"
+ *   definition card: main = "?" (definition), alternative = definition image, audio = "<definition prompt>: <definition>"
+ * Each card also gets a "caption" ("<prompt> – <text>") that the app shows on screen when the card is opened.
+ *
+ * In "chip" mode the app shows the alternative (revealed) image straight away, so both modes use one config.
+ *
+ * File names (inside config/media/):
+ *   01_term_<term>.jpg / .mp3   01_definition_<term>.jpg / .mp3   question_term.jpg   question_definition.jpg
+ * The number keeps the pair together and sets the order; <term> is only for readability.
  *
  * Plain script (no modules) so it also works when the page is opened from disk.
  */
@@ -24,10 +31,11 @@
     const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
     const AUDIO_EXTENSIONS = ['mp3', 'wav', 'ogg', 'm4a', 'aac'];
     const MANIFEST_NAME = 'cards.json';
+    const ROLES = ['term', 'definition'];
 
     const DEFAULTS = {
         resolution: 'low',
-        welcomeText: 'Натисніть тут <br>для початку роботи<br>з AR-Flash-картками',
+        welcomeText: 'AR-картки<br>«Термін – Визначення»<br>Оберіть режим роботи',
         markerType: 'barcode',          // 'barcode' | 'aruco'
         markerIds: [],                  // card marker ids in print order; empty = automatic
         markerSize: 30,                 // matrixSize of card markers
@@ -35,8 +43,11 @@
         controllerSize: 20,
         mainBoxSize: [37, 5, 37],
         altBoxSize: [45, 10, 45],
-        useQuestionImage: true,         // target card front shows a "?" image
-        questionImage: '',              // file name; empty = "<targetLang>_question.jpg"
+        hideUntilTouched: true,         // both cards show a "?" image until the pointer touches them (card mode)
+        questionTermImage: 'question_term.jpg',
+        questionDefinitionImage: 'question_definition.jpg',
+        termPrompt: 'Дайте визначення терміну',
+        definitionPrompt: 'Якому терміну відповідає визначення',
         playOnControllerIntersect: true
     };
 
@@ -55,20 +66,52 @@
 
     // ==================== FILE NAMES ====================
 
-    function safeWord(word) {
-        return String(word).trim().replace(/\s+/g, '_');
+    // Readable, file-system-safe part of a name: letters (any alphabet) and digits, max 30 chars
+    function slug(text) {
+        const s = String(text || '')
+            .normalize('NFC')
+            .trim()
+            .replace(/[^\p{L}\p{N}]+/gu, '_')
+            .replace(/^_+|_+$/g, '')
+            .slice(0, 30)
+            .replace(/_+$/, '');
+        return s || 'card';
     }
 
-    function imageFileName(lang, word) {
-        return `${lang}_${safeWord(word)}.jpg`;
+    function pairKey(index) {
+        return String(index + 1).padStart(2, '0');
     }
 
-    function audioFileName(lang, word) {
-        return `${lang}_${safeWord(word)}.mp3`;
+    function mediaFileName(index, role, term, ext) {
+        return `${pairKey(index)}_${role}_${slug(term)}.${ext}`;
     }
 
-    function questionFileName(lang) {
-        return `${lang}_question.jpg`;
+    function imageFileName(index, role, term) {
+        return mediaFileName(index, role, term, 'jpg');
+    }
+
+    function audioFileName(index, role, term) {
+        return mediaFileName(index, role, term, 'mp3');
+    }
+
+    function questionFileName(role) {
+        return `question_${role === 'term' ? 'term' : 'definition'}.jpg`;
+    }
+
+    // On-screen caption: "Дайте визначення терміну – Атом" (just the prompt if the text is unknown)
+    function captionText(prompt, text) {
+        const p = String(prompt || '').trim();
+        const t = String(text || '').trim();
+        if (!p) return t;
+        return t ? `${p} – ${t}` : p;
+    }
+
+    // Spoken text: "Дайте визначення терміну: Атом." (a colon gives a natural pause)
+    function spokenText(prompt, text) {
+        const p = String(prompt || '').trim();
+        const t = String(text || '').trim();
+        if (!p) return t;
+        return t ? `${p}: ${t}` : p;
     }
 
     // ==================== MARKER IDS ====================
@@ -107,7 +150,7 @@
         }
 
         if (ids.length < count) {
-            throw new Error(`Needed ${count} marker ids (2 per word pair), but only ${ids.length} were entered.`);
+            throw new Error(`Needed ${count} marker ids (2 per term–definition pair), but only ${ids.length} were entered.`);
         }
         const unique = new Set(ids);
         if (unique.size !== ids.length) {
@@ -128,8 +171,8 @@
 
     /*
      * pairs: [{
-     *   source: { lang, word, image, audio },
-     *   target: { lang, word, image, audio }
+     *   term:       { text, image, audio },
+     *   definition: { text, image, audio }
      * }]
      * options: see DEFAULTS (missing keys fall back to DEFAULTS)
      * returns { config, warnings }
@@ -139,7 +182,7 @@
         const warnings = [];
 
         if (!pairs || pairs.length === 0) {
-            throw new Error('No word pairs to build the config from.');
+            throw new Error('No term–definition pairs to build the config from.');
         }
 
         const markerIds = resolveMarkerIds(pairs.length * 2, opts);
@@ -160,12 +203,13 @@
             textureFile: textureFile
         });
 
-        const card = (target, frontImage, backImage, audio) => {
+        const card = (target, frontImage, backImage, side, role, caption) => {
             const marker = {
                 id: markers.length + 1,
                 type: cardType,
                 target: target,
                 matrixSize: Number(opts.markerSize),
+                role: role,
                 contentType: 'primitive',
                 primitive: box(opts.mainBoxSize, frontImage),
                 alternativeContent: {
@@ -173,27 +217,28 @@
                     primitive: box(opts.altBoxSize, backImage)
                 }
             };
-            if (audio) {
-                marker.audioFile = audio;
-                marker.playOnControllerIntersect = !!opts.playOnControllerIntersect;
-            }
+            if (caption) marker.caption = caption;
+            if (side.audio) marker.audioFile = side.audio;
+            if (side.audio) marker.playOnControllerIntersect = !!opts.playOnControllerIntersect;
             markers.push(marker);
         };
 
+        const questionTerm = opts.questionTermImage || questionFileName('term');
+        const questionDefinition = opts.questionDefinitionImage || questionFileName('definition');
+
         pairs.forEach((pair, i) => {
-            const label = `pair ${i + 1} (${pair.source.word} / ${pair.target.word})`;
-            if (!pair.source.image) warnings.push(`No source image for ${label}.`);
-            if (!pair.target.image) warnings.push(`No target image for ${label}.`);
-            if (!pair.source.audio) warnings.push(`No source audio for ${label}.`);
-            if (!pair.target.audio) warnings.push(`No target audio for ${label}.`);
+            const label = `pair ${i + 1} (${pair.term.text || pair.term.image || '?'})`;
+            if (!pair.term.image) warnings.push(`No term image for ${label}.`);
+            if (!pair.definition.image) warnings.push(`No definition image for ${label}.`);
+            if (!pair.term.audio) warnings.push(`No term audio for ${label}.`);
+            if (!pair.definition.audio) warnings.push(`No definition audio for ${label}.`);
 
-            const targetLang = pair.target.lang;
-            const question = opts.useQuestionImage
-                ? (opts.questionImage || questionFileName(targetLang))
-                : pair.target.image;
-
-            card(markerIds[i * 2], pair.source.image, pair.source.image, pair.source.audio);
-            card(markerIds[i * 2 + 1], question, pair.target.image, pair.target.audio);
+            const termFront = opts.hideUntilTouched ? questionTerm : pair.term.image;
+            const definitionFront = opts.hideUntilTouched ? questionDefinition : pair.definition.image;
+            card(markerIds[i * 2], termFront, pair.term.image, pair.term, 'term',
+                captionText(opts.termPrompt, pair.term.text));
+            card(markerIds[i * 2 + 1], definitionFront, pair.definition.image, pair.definition, 'definition',
+                captionText(opts.definitionPrompt, pair.definition.text));
         });
 
         const config = {
@@ -209,12 +254,13 @@
     // Manifest written next to the files so a folder can be re-assembled later
     function buildManifest(pairs, extra) {
         return Object.assign({
-            version: 1,
+            version: 3,
+            kind: 'term-definition',
             generatedAt: new Date().toISOString(),
             cards: pairs.map((pair, i) => ({
-                key: String(i + 1).padStart(2, '0'),
-                source: Object.assign({}, pair.source),
-                target: Object.assign({}, pair.target)
+                key: pairKey(i),
+                term: Object.assign({}, pair.term),
+                definition: Object.assign({}, pair.definition)
             }))
         }, extra || {});
     }
@@ -239,62 +285,74 @@
     // ==================== GROUPING FILES FROM A FOLDER ====================
 
     /*
-     * Parses "[NN_]lang_word.ext" / "lang-word.ext"
-     *   01_en_Man.jpg      -> key 01, lang en, word Man
-     *   pt-pt_Homem.mp3    -> lang pt-pt, word Homem
-     *   pt-question.jpg    -> lang pt, word question
+     * Parses media file names:
+     *   01_term_Фотосинтез.jpg        -> key 01, role term, label Фотосинтез
+     *   01_definition_Фотосинтез.mp3  -> key 01, role definition
+     *   term_Атом.jpg / definition_Атом.jpg (no number: paired by label)
+     *   question_term.jpg / question_definition.jpg -> the "?" images (question.jpg = both)
      */
     function parseFileName(name) {
-        const m = /^(?:(\d+)[_-])?([a-z]{2}(?:-[a-z]{2})?)[_-](.+)\.([a-z0-9]+)$/i.exec(name);
-        if (!m) return null;
-        const ext = m[4].toLowerCase();
+        const ext = (/\.([a-z0-9]+)$/i.exec(name) || [])[1];
+        if (!ext) return null;
+        const lowerExt = ext.toLowerCase();
         let kind = null;
-        if (IMAGE_EXTENSIONS.includes(ext)) kind = 'image';
-        else if (AUDIO_EXTENSIONS.includes(ext)) kind = 'audio';
+        if (IMAGE_EXTENSIONS.includes(lowerExt)) kind = 'image';
+        else if (AUDIO_EXTENSIONS.includes(lowerExt)) kind = 'audio';
         if (!kind) return null;
+
+        const base = name.slice(0, -(ext.length + 1)).normalize('NFC');
+        const q = /^question(?:[_-](term|definition|def))?$/i.exec(base);
+        if (q) {
+            const role = !q[1] ? 'any' : q[1].toLowerCase() === 'term' ? 'term' : 'definition';
+            return { question: role, kind };
+        }
+
+        const m = /^(?:(\d+)[_-])?(term|definition|def)(?:[_-](.*))?$/i.exec(base);
+        if (!m) return null;
+        const role = m[2].toLowerCase() === 'term' ? 'term' : 'definition';
         return {
-            key: m[1] || null,
-            lang: m[2].toLowerCase(),
-            word: m[3].replace(/_/g, ' '),
+            key: m[1] ? String(parseInt(m[1], 10)).padStart(2, '0') : null,
+            role: role,
+            label: (m[3] || '').replace(/_/g, ' ').trim(),
             kind: kind
         };
     }
 
-    function baseLang(lang) {
-        return String(lang).split('-')[0];
-    }
-
     /*
-     * files: [{ name, path }]  — path is relative to the chosen folder (e.g. "cards/Man/en_Man.jpg")
+     * files: [{ name, path }]  — path is relative to the media folder (e.g. "01_term_Атом.jpg")
      * manifest: parsed cards.json or null
      * returns {
-     *   method, languages, sourceLang, targetLang,
-     *   pairs, unpaired: { source: [entry], target: [entry] }, questionImages: { lang: path }, ignored: [path]
+     *   method, pairs, unpaired: { term: [entry], definition: [entry] },
+     *   questionImages: { term, definition } (paths or null), ignored: [path]
      * }
-     * entry = { lang, word, image, audio, key, folder }
+     * entry = { role, key, label, text, image, audio, folder }
      */
-    function groupFiles(files, manifest, preferredLangs) {
-        const entries = new Map(); // "lang|word|folder" -> entry
-        const questionImages = {};
+    function groupFiles(files, manifest) {
+        const entries = new Map(); // "role|key|label|folder" -> entry
+        const questionImages = { term: null, definition: null, any: null };
         const ignored = [];
 
         files.forEach(file => {
             const info = parseFileName(file.name);
             if (!info) {
-                if (file.name !== MANIFEST_NAME && file.name !== 'config.json') ignored.push(file.path);
+                if (file.name !== MANIFEST_NAME && !/^config.*\.json$/i.test(file.name)) ignored.push(file.path);
+                return;
+            }
+            if (info.question) {
+                if (info.kind === 'image' && !questionImages[info.question]) questionImages[info.question] = file.path;
                 return;
             }
             const segments = file.path.split('/');
             const folder = segments.length > 1 ? segments.slice(0, -1).join('/') : '';
-
-            if (info.word.toLowerCase() === 'question') {
-                if (info.kind === 'image') questionImages[info.lang] = file.path;
-                return;
-            }
-
-            const id = `${info.lang}|${info.word}|${folder}|${info.key || ''}`;
+            const id = `${info.role}|${info.key || ''}|${info.label.toLowerCase()}|${folder}`;
             if (!entries.has(id)) {
-                entries.set(id, { lang: info.lang, word: info.word, image: null, audio: null, key: info.key, folder: folder });
+                // A definition file is named after its term, so its label must not become the definition text
+                // (the on-screen prompt would give the answer away). Full texts come from cards.json.
+                entries.set(id, {
+                    role: info.role, key: info.key, label: info.label,
+                    text: info.role === 'term' ? info.label : '',
+                    image: null, audio: null, folder
+                });
             }
             const entry = entries.get(id);
             if (entry[info.kind]) ignored.push(file.path); // duplicate (e.g. jpg + png)
@@ -302,30 +360,19 @@
         });
 
         const all = Array.from(entries.values());
-        const languages = Array.from(new Set(all.map(e => e.lang)));
-
-        let sourceLang = preferredLangs && preferredLangs.source;
-        let targetLang = preferredLangs && preferredLangs.target;
-        if (!sourceLang || !languages.includes(sourceLang)) {
-            sourceLang = languages.includes('en') ? 'en' : languages[0];
-        }
-        if (!targetLang || !languages.includes(targetLang) || targetLang === sourceLang) {
-            targetLang = languages.find(l => l !== sourceLang);
-        }
-
-        const sources = all.filter(e => e.lang === sourceLang);
-        const targets = all.filter(e => e.lang === targetLang);
+        const terms = all.filter(e => e.role === 'term');
+        const definitions = all.filter(e => e.role === 'definition');
         const used = new Set();
         const pairs = [];
         const methods = new Set();
 
-        const take = (s, t, method) => {
-            pairs.push({ source: s, target: t });
-            used.add(s); used.add(t);
+        const take = (t, d, method) => {
+            pairs.push({ term: t, definition: d });
+            used.add(t); used.add(d);
             methods.add(method);
         };
 
-        // 1. Manifest from the generator (cards.json)
+        // 1. Manifest from the generator (cards.json): exact pairs, order and full texts
         if (manifest && Array.isArray(manifest.cards)) {
             const byFile = new Map();
             all.forEach(e => {
@@ -336,60 +383,53 @@
             });
             manifest.cards.forEach(c => {
                 const find = side => side && (byFile.get(side.image) || byFile.get(side.audio));
-                const s = find(c.source);
-                const t = find(c.target);
-                if (s && t && !used.has(s) && !used.has(t) && s.lang === sourceLang && t.lang === targetLang) {
-                    take(s, t, 'manifest');
+                const t = find(c.term);
+                const d = find(c.definition);
+                if (t && d && !used.has(t) && !used.has(d) && t.role === 'term' && d.role === 'definition') {
+                    if (c.term.text) t.text = c.term.text;
+                    if (c.definition.text) d.text = c.definition.text;
+                    take(t, d, 'manifest');
                 }
             });
         }
 
-        // 2. Shared numeric prefix: 01_en_Man.jpg + 01_pt-pt_Homem.jpg
-        sources.filter(s => !used.has(s) && s.key).forEach(s => {
-            const t = targets.find(t => !used.has(t) && t.key === s.key);
-            if (t) take(s, t, 'prefix');
+        // 2. Shared number: 01_term_… + 01_definition_… (same folder)
+        terms.filter(t => !used.has(t) && t.key).forEach(t => {
+            const d = definitions.find(d => !used.has(d) && d.key === t.key && d.folder === t.folder);
+            if (d) take(t, d, 'number');
         });
 
-        // 3. Same sub-folder: Man/en_Man.jpg + Man/pt-pt_Homem.jpg
-        sources.filter(s => !used.has(s) && s.folder).forEach(s => {
-            const sameFolder = targets.filter(t => !used.has(t) && t.folder === s.folder);
-            const sourcesInFolder = sources.filter(x => !used.has(x) && x.folder === s.folder);
-            if (sameFolder.length === 1 && sourcesInFolder.length === 1) take(s, sameFolder[0], 'folder');
+        // 3. Same label: term_Атом.jpg + definition_Атом.jpg
+        terms.filter(t => !used.has(t) && t.label).forEach(t => {
+            const d = definitions.find(d => !used.has(d) && d.label.toLowerCase() === t.label.toLowerCase() && d.folder === t.folder);
+            if (d) take(t, d, 'name');
         });
 
-        // 4. Same word in both languages (e.g. names, loanwords)
-        sources.filter(s => !used.has(s)).forEach(s => {
-            const t = targets.find(t => !used.has(t) && t.word.toLowerCase() === s.word.toLowerCase());
-            if (t) take(s, t, 'word');
+        // 4. One term and one definition in the same sub-folder
+        terms.filter(t => !used.has(t) && t.folder).forEach(t => {
+            const ds = definitions.filter(d => !used.has(d) && d.folder === t.folder);
+            const ts = terms.filter(x => !used.has(x) && x.folder === t.folder);
+            if (ds.length === 1 && ts.length === 1) take(t, ds[0], 'folder');
         });
 
-        const sortKey = e => `${e.key || ''}|${e.folder}|${e.word.toLowerCase()}`;
-        if (methods.has('prefix') || methods.has('folder')) {
-            pairs.sort((a, b) => sortKey(a.source).localeCompare(sortKey(b.source)));
+        if (!methods.has('manifest')) {
+            const sortKey = e => `${e.folder}|${e.key || '~'}|${e.label.toLowerCase()}`;
+            pairs.sort((a, b) => sortKey(a.term).localeCompare(sortKey(b.term)));
         }
 
         return {
             method: Array.from(methods),
-            languages,
-            sourceLang,
-            targetLang,
             pairs,
             unpaired: {
-                source: sources.filter(e => !used.has(e)),
-                target: targets.filter(e => !used.has(e))
+                term: terms.filter(e => !used.has(e)),
+                definition: definitions.filter(e => !used.has(e))
             },
-            otherLanguages: languages.filter(l => l !== sourceLang && l !== targetLang),
-            questionImages,
+            questionImages: {
+                term: questionImages.term || questionImages.any,
+                definition: questionImages.definition || questionImages.any
+            },
             ignored
         };
-    }
-
-    // Question image for a target language: exact ("pt-pt_question.jpg") or base ("pt-question.jpg")
-    function findQuestionImage(questionImages, lang) {
-        if (questionImages[lang]) return questionImages[lang];
-        const base = baseLang(lang);
-        const key = Object.keys(questionImages).find(l => baseLang(l) === base);
-        return key ? questionImages[key] : null;
     }
 
     // ==================== SHARED SETTINGS FORM ====================
@@ -411,7 +451,7 @@
                     </select>
                 </div>
                 <div class="config-item" style="flex: 2; min-width: 220px;">
-                    <label>Marker ids in print order (2 per pair):</label>
+                    <label>Marker ids in print order (2 per pair: term, definition):</label>
                     <input type="text" data-field="markerIds" value="${escapeHtml(parseMarkerIds(v.markerIds).join(', '))}"
                            placeholder="empty = automatic (barcode 1, 2, 3… / ArUco ${DEFAULT_ARUCO_IDS.join(', ')})">
                 </div>
@@ -440,13 +480,21 @@
                     <label>Card marker size:</label>
                     <input type="number" data-field="markerSize" value="${v.markerSize}" min="1">
                 </div>
-                <div class="config-item" style="flex: 2; min-width: 220px;">
-                    <label>
-                        <input type="checkbox" data-field="useQuestionImage" ${v.useQuestionImage ? 'checked' : ''} style="width: auto;">
-                        Target card shows a "?" image until touched:
+                <div class="config-item" style="flex: 2; min-width: 220px; justify-content: flex-end;">
+                    <label style="margin-bottom: 12px;">
+                        <input type="checkbox" data-field="hideUntilTouched" ${v.hideUntilTouched ? 'checked' : ''} style="width: auto;">
+                        Both cards show "?" until the pointer touches them ("Card" mode)
                     </label>
-                    <input type="text" data-field="questionImage" value="${escapeHtml(v.questionImage)}"
-                           placeholder="empty = &lt;language&gt;_question.jpg">
+                </div>
+            </div>
+            <div class="config-row" style="flex-wrap: wrap;">
+                <div class="config-item" style="flex: 1; min-width: 240px;">
+                    <label>Prompt when a term card opens (spoken and shown):</label>
+                    <input type="text" data-field="termPrompt" value="${escapeHtml(v.termPrompt)}">
+                </div>
+                <div class="config-item" style="flex: 1; min-width: 240px;">
+                    <label>Prompt when a definition card opens:</label>
+                    <input type="text" data-field="definitionPrompt" value="${escapeHtml(v.definitionPrompt)}">
                 </div>
             </div>
             <div class="config-row" style="flex-wrap: wrap;">
@@ -472,8 +520,11 @@
             mainBoxSize: size('mainBoxSize', DEFAULTS.mainBoxSize),
             altBoxSize: size('altBoxSize', DEFAULTS.altBoxSize),
             markerSize: parseFloat(field('markerSize').value) || DEFAULTS.markerSize,
-            useQuestionImage: field('useQuestionImage').checked,
-            questionImage: field('questionImage').value.trim(),
+            hideUntilTouched: field('hideUntilTouched').checked,
+            questionTermImage: DEFAULTS.questionTermImage,
+            questionDefinitionImage: DEFAULTS.questionDefinitionImage,
+            termPrompt: field('termPrompt').value.trim(),
+            definitionPrompt: field('definitionPrompt').value.trim(),
             welcomeText: field('welcomeText').value,
             playOnControllerIntersect: DEFAULTS.playOnControllerIntersect
         };
@@ -497,10 +548,14 @@
         DEFAULTS,
         DEFAULT_ARUCO_IDS,
         MANIFEST_NAME,
-        safeWord,
+        ROLES,
+        slug,
+        pairKey,
         imageFileName,
         audioFileName,
         questionFileName,
+        captionText,
+        spokenText,
         parseMarkerIds,
         resolveMarkerIds,
         buildConfig,
@@ -509,7 +564,6 @@
         referencedFiles,
         parseFileName,
         groupFiles,
-        findQuestionImage,
         renderSettingsForm,
         readSettingsForm,
         downloadText,

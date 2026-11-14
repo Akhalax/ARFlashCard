@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 
 <head>
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <title>AR project template</title>
     <!-- Додаємо необхідні бібліотеки -->
@@ -31,12 +32,55 @@
 
 <body style='margin : 0px; overflow: hidden; font-family: Monospace; user-select: none; pointer-events: none;'>
 
-    <div id="access" style="top: 0; left: 0; right:0; bottom: 0; background: #000; position: absolute; user-select: all; pointer-events: all;">
-        <div id="text-wrapper" style="top: 50%; left: 50%; position: absolute; color: #fff; transform: translate(-50%, -50%); text-align: center;
-                font-family: Arial, Helvetica, sans-serif; font-weight: 400; line-height: 1.5em; font-size: large; white-space: nowrap;
-                user-select: none; pointer-events: none;
-            ">
+    <style>
+        #access {
+            position: absolute; inset: 0; background: #000; pointer-events: all;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px;
+            padding: 16px; box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif; color: #fff; user-select: none;
+        }
+        #text-wrapper { text-align: center; font-weight: 400; line-height: 1.5em; font-size: large; pointer-events: none; }
+        #mode-buttons { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; }
+        .mode-btn {
+            display: block; width: 100%; padding: 14px 18px; border-radius: 14px; border: 2px solid #fff;
+            background: transparent; color: #fff; font: inherit; text-align: left; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mode-btn:active { transform: scale(0.98); }
+        .mode-btn.card-mode { background: #1f6f43; border-color: #2fa866; }
+        .mode-btn.chip-mode { background: #2d4a8a; border-color: #4a78d6; }
+        .mode-btn b { display: block; font-size: 1.15em; margin-bottom: 4px; }
+        .mode-btn span { display: block; font-size: 0.85em; opacity: 0.85; line-height: 1.35em; }
+
+        /* Підказка відкритої картки: «Дайте визначення терміну – …» */
+        #card-caption {
+            position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+            width: calc(100% - 32px); max-width: 640px; box-sizing: border-box;
+            padding: 14px 18px; border-radius: 14px;
+            background: rgba(20, 20, 40, 0.82); color: #fff;
+            font-family: Arial, Helvetica, sans-serif; font-size: 18px; line-height: 1.4; text-align: center;
+            pointer-events: none; z-index: 1000;
+            opacity: 0; transition: opacity 0.25s, transform 0.25s;
+        }
+        #card-caption.visible { opacity: 1; transform: translate(-50%, 0); }
+        #card-caption.term { border-left: 6px solid #667eea; }
+        #card-caption.definition { border-left: 6px solid #11998e; }
+    </style>
+    <div id="card-caption" aria-live="polite"></div>
+    <div id="access">
+        <div id="text-wrapper">
             Loading...
+        </div>
+        <!-- Вибір режиму роботи -->
+        <div id="mode-buttons">
+            <button class="mode-btn card-mode" data-mode="card">
+                <b>Режим «Картка»</b>
+                <span>З контролером: торкніться картки вказівником, щоб відкрити визначення й почути його</span>
+            </button>
+            <button class="mode-btn chip-mode" data-mode="chip">
+                <b>Режим «Фішка»</b>
+                <span>Без контролера: усі картки показують зміст одразу, звучить перша картка в кадрі</span>
+            </button>
         </div>
     </div>
 
@@ -110,6 +154,63 @@
                     return response.json();
                 })
                 .then(resolveConfigMediaPaths);
+        }
+
+        // === РЕЖИМИ РОБОТИ ===
+        // 'card' (Картка): маркер-вказівник, вміст картки відкривається дотиком вказівника.
+        // 'chip' (Фішка):  без вказівника, кожна картка одразу показує свій «відкритий» вміст,
+        //                  звук грає лише для першої картки, що з'явилася в кадрі.
+        let appMode = 'card';
+
+        // Перетворює конфіг для режиму «Фішка», щоб решта коду працювала без змін:
+        //  - маркери-вказівники прибираються;
+        //  - альтернативний («відкритий») вміст стає основним: для коробок береться лише його текстура
+        //    (розмір лишається основний), для інших типів — вміст повністю;
+        //  - звук грає без прив'язки до вказівника.
+        function applyChipMode(cfg) {
+            cfg.markers = (cfg.markers || []).filter(m => m.contentType !== 'controller');
+            cfg.markers.forEach(marker => {
+                const alt = marker.alternativeContent;
+                if (alt) {
+                    if (marker.contentType === 'primitive' && alt.contentType === 'primitive' &&
+                        marker.primitive && alt.primitive && alt.primitive.textureFile) {
+                        marker.primitive = Object.assign({}, marker.primitive, { textureFile: alt.primitive.textureFile });
+                    } else {
+                        ['contentType', 'contentFile', 'primitive', 'text', 'modelScale', 'position', 'rotation', 'animation', 'multiplex3D']
+                            .forEach(key => {
+                                if (alt[key] !== undefined) marker[key] = alt[key];
+                            });
+                    }
+                    delete marker.alternativeContent;
+                }
+                marker.playOnControllerIntersect = false;
+            });
+            return cfg;
+        }
+
+        // === ПІДКАЗКА НА ЕКРАНІ ===
+        // Показує "caption" картки (напр. «Дайте визначення терміну – Атом»), коли картку відкрито
+        // вказівником (режим «Картка») або коли вона звучить першою (режим «Фішка»).
+        const captionElement = document.getElementById('card-caption');
+        let captionMarkerIndex = -1;
+
+        function showCaption(markerIndex) {
+            const marker = config && config.markers && config.markers[markerIndex];
+            if (!marker || !marker.caption) {
+                hideCaption();
+                return;
+            }
+            if (captionMarkerIndex === markerIndex && captionElement.classList.contains('visible')) return;
+            captionMarkerIndex = markerIndex;
+            captionElement.textContent = marker.caption;
+            captionElement.className = `visible ${marker.role || ''}`;
+        }
+
+        // Ховає підказку (лише якщо вона належить цій картці, коли індекс вказано)
+        function hideCaption(markerIndex) {
+            if (markerIndex !== undefined && markerIndex !== captionMarkerIndex) return;
+            captionMarkerIndex = -1;
+            captionElement.classList.remove('visible');
         }
 
         // Опис складних 3D-об'єктів (multiplex-3D) теж лежить у config/
@@ -596,6 +697,90 @@
             
             // Track which markers have already played audio (to avoid replaying while intersecting)
             let markerAudioPlayed = new Set();
+
+            // Звук/відео кожного маркера за індексом (для режиму «Фішка»)
+            let markerSounds = new Map();
+
+            // === ЗВУК У РЕЖИМІ «ФІШКА» (логіка з проєкту flashcard) ===
+            // Грає лише картка, що з'явилася першою; поки вона в кадрі — інші мовчать.
+            // Якщо її втрачено: відразу перемикаємось на іншу видиму картку,
+            // а якщо видимих немає — зупиняємо звук через CHIP_LOST_DELAY мс.
+            const CHIP_LOST_DELAY = 400;
+            let chipActiveMarker = -1;
+            let chipLastSeen = new Map();
+            let chipPlayed = new Set();
+
+            function isMediaPlaying(media) {
+                if (!media) return false;
+                return media.nodeName === 'VIDEO' ? !media.paused : !!media.isPlaying;
+            }
+
+            function chipPlay(i) {
+                const media = markerSounds.get(i);
+                if (!media) return;
+                if (media.nodeName === 'VIDEO') {
+                    if (media.paused) media.play();
+                } else if (!chipPlayed.has(i) && !media.isPlaying) {
+                    media.play();
+                }
+                chipPlayed.add(i); // аудіо звучить один раз за появу картки
+            }
+
+            function chipStop(i) {
+                const media = markerSounds.get(i);
+                if (media) {
+                    if (media.nodeName === 'VIDEO') {
+                        if (!media.paused) media.pause();
+                    } else if (media.isPlaying) {
+                        media.stop();
+                    }
+                }
+                chipPlayed.delete(i);
+            }
+
+            function updateChipAudio() {
+                const now = performance.now();
+                const visible = i => markerRoots[i] && markerRoots[i].visible && markerSounds.has(i);
+                markerSounds.forEach((_, i) => { if (visible(i)) chipLastSeen.set(i, now); });
+
+                const findOtherVisible = () => {
+                    for (const i of markerSounds.keys()) {
+                        if (i !== chipActiveMarker && visible(i)) return i;
+                    }
+                    return -1;
+                };
+
+                if (chipActiveMarker !== -1) {
+                    if (visible(chipActiveMarker)) {
+                        chipPlay(chipActiveMarker);
+                    } else {
+                        const next = findOtherVisible();
+                        if (next !== -1) {
+                            chipStop(chipActiveMarker);
+                            chipActiveMarker = next;
+                            chipPlay(chipActiveMarker);
+                        } else if (now - (chipLastSeen.get(chipActiveMarker) || 0) >= CHIP_LOST_DELAY) {
+                            chipStop(chipActiveMarker);
+                            chipActiveMarker = -1;
+                        }
+                    }
+                } else {
+                    const first = findOtherVisible();
+                    if (first !== -1) {
+                        chipActiveMarker = first;
+                        chipPlay(chipActiveMarker);
+                    }
+                }
+
+                // Картки, що зникли з кадру, можуть прозвучати знову при наступній появі
+                chipPlayed.forEach(i => {
+                    if (i !== chipActiveMarker && !visible(i)) chipPlayed.delete(i);
+                });
+
+                // Підказка — для картки, що звучить (першої в кадрі)
+                if (chipActiveMarker !== -1) showCaption(chipActiveMarker);
+                else hideCaption();
+            }
             
             // Switch cooldown to prevent rapid toggling between content states
             let lastSwitchTime = 0;
@@ -1228,12 +1413,16 @@
 
                 // Always update state
                 markerContentState.set(markerIndex, useAlternativeContent);
+
+                // Підказка на екрані для відкритої картки
+                if (useAlternativeContent) showCaption(markerIndex);
+                else hideCaption(markerIndex);
             }
 
             // Завантажуємо конфігурацію перед ініціалізацією
             loadAppConfig()
                 .then(async data => {
-                    config = data;
+                    config = appMode === 'chip' ? applyChipMode(data) : data;
                     // Оновлюємо привітальний текст з конфігурації
                     updateWelcomeText();
                     // Перевіряємо наявність файлів з config.json
@@ -1583,6 +1772,7 @@
                                 sound: video,
                                 playOnControllerIntersect: playOnControllerIntersect
                             };
+                            markerSounds.set(i, video);
                             
                             // Додаємо відео до масиву аудіо контенту
                             if (patternBarcode[i] === -1) {
@@ -2062,8 +2252,10 @@
                                 let sound = new THREE.Audio(listener);
                                 sound.name = `${audioFiles[i]}`;
                                 sound.setBuffer(buffer);
-                                // Встановлюємо loop: false для playOnControllerIntersect, інакше true
-                                sound.setLoop(!playOnControllerIntersect);
+                                // Встановлюємо loop: false для playOnControllerIntersect, інакше true.
+                                // У режимі «Фішка» звук програється один раз за появу картки.
+                                sound.setLoop(appMode === 'chip' ? false : !playOnControllerIntersect);
+                                markerSounds.set(i, sound);
                                 // Store sound object with flag
                                 let soundData = {
                                     sound: sound,
@@ -2161,10 +2353,19 @@
                 // Це критично для правильного скидання контенту коли контролер відходить
                 let intersectedMarkerIndex = null;
 
+                // Об'єкт видимий лише разом з усіма батьками (картка, якої зараз немає в кадрі,
+                // зберігає останню позу — у режимі 2d вона могла «перехопити» дотик у видимої картки)
+                const isShown = (object) => {
+                    for (let o = object; o; o = o.parent) {
+                        if (!o.visible) return false;
+                    }
+                    return true;
+                };
+
                 mainContainer.traverse((object) => {
                     if (object.isMesh &&
                         !(object.userData && object.userData.isController) &&
-                        object.visible) {  // Перевірка видимості - прихований об'єкт не може мати колізію
+                        isShown(object)) {  // Перевірка видимості - прихований об'єкт не може мати колізію
                         
                         // Перевіряємо колізію тільки з видимим об'єктом
                         // (видимість вже перевірена вище, тому просто перевіряємо колізію)
@@ -2539,7 +2740,9 @@
                         }
                     }
 
-                    if (contentInitialized) {
+                    if (contentInitialized && appMode === 'chip') {
+                        updateChipAudio();
+                    } else if (contentInitialized) {
                         if (barcodesID.length) {
                             barcodesID.forEach((elem, index) => {
                                 let soundData = barcodesSound.get(elem);
@@ -2808,26 +3011,30 @@
                 totalTime += deltaTime;
                 update();
                 updateImageOrientations(); // вирівнюємо зображення «вгору» до перевірки колізій
-                checkController();
+                if (appMode === 'card') checkController();
                 animateObjects(); // Анімуємо примітиви та моделі
                 render();
             }
         }
 
-        // Прибираємо блок після натискання на екран для дозволу аудіо програвання на iOS
-        access.addEventListener('click', () => {
-            // iOS (Safari 16.4+): тип аудіосесії 'playback' — звук грає навіть у беззвучному режимі.
-            // Встановлюємо до створення AudioContext, у межах жесту користувача.
-            if (navigator.audioSession) {
-                try {
-                    navigator.audioSession.type = 'playback';
-                } catch (e) {
-                    console.warn('Could not set audioSession type:', e);
+        // Вибір режиму. Натискання кнопки — це ще й жест користувача, потрібний iOS для дозволу аудіо.
+        access.querySelectorAll('.mode-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // iOS (Safari 16.4+): тип аудіосесії 'playback' — звук грає навіть у беззвучному режимі.
+                // Встановлюємо до створення AudioContext, у межах жесту користувача.
+                if (navigator.audioSession) {
+                    try {
+                        navigator.audioSession.type = 'playback';
+                    } catch (e) {
+                        console.warn('Could not set audioSession type:', e);
+                    }
                 }
-            }
-            initiateExperience();
-            document.body.removeChild(access);
-            loader.style.display = 'block';
+                appMode = button.dataset.mode === 'chip' ? 'chip' : 'card';
+                initiateExperience();
+                document.body.removeChild(access);
+                loader.style.display = 'block';
+            });
         });
     </script>
 
