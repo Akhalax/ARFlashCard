@@ -1,0 +1,51 @@
+{
+  "version": 3,
+  "kind": "term-definition",
+  "generatedAt": "2026-11-16T21:50:16.062Z",
+  "cards": [
+    {
+      "key": "01",
+      "term": {
+        "text": "Молекула",
+        "image": "01_term_Молекула.jpg",
+        "audio": "01_term_Молекула.mp3"
+      },
+      "definition": {
+        "text": "Найменша частинка речовини, що зберігає її хімічні властивості.",
+        "image": "01_definition_Молекула.jpg",
+        "audio": "01_definition_Молекула.mp3"
+      }
+    },
+    {
+      "key": "02",
+      "term": {
+        "text": "Атом",
+        "image": "02_term_Атом.jpg",
+        "audio": "02_term_Атом.mp3"
+      },
+      "definition": {
+        "text": "Найменша частинка хімічного елемента, що зберігає його властивості.",
+        "image": "02_definition_Атом.jpg",
+        "audio": "02_definition_Атом.mp3"
+      }
+    },
+    {
+      "key": "03",
+      "term": {
+        "text": "Фотосинтез",
+        "image": "03_term_Фотосинтез.jpg",
+        "audio": "03_term_Фотосинтез.mp3"
+      },
+      "definition": {
+        "text": "Утворення органічних речовин рослинами з вуглекислого газу й води під дією світла.",
+        "image": "03_definition_Фотосинтез.jpg",
+        "audio": "03_definition_Фотосинтез.mp3"
+      }
+    }
+  ],
+  "voice": "Piper: Олекса (чоловічий) · high · рекомендовано",
+  "prompts": {
+    "term": "Дайте визначення терміну",
+    "definition": "Якому терміну відповідає визначення"
+  }
+}

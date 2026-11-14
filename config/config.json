@@ -1,7 +1,7 @@
 {
   "settings": {
     "resolution": "low",
-    "welcomeText": "Натисніть тут <br>для початку роботи<br>з AR-Flash-картками <br>вивчення португальских слів"
+    "welcomeText": "AR-картки<br>«Термін – Визначення»<br>Оберіть режим роботи"
   },
   "markers": [
     {
@@ -11,149 +11,224 @@
       "matrixSize": 20,
       "contentType": "controller",
       "controllerConfig": {
-        "bodySize": [5, 5, 35],
-        "tipSize": [5, 5, 10],
+        "bodySize": [
+          5,
+          5,
+          35
+        ],
+        "tipSize": [
+          5,
+          5,
+          10
+        ],
         "bodyColor": "#008000",
         "tipColor": "#ffffff",
         "touchColor": "#ff6600",
-        "position": [0, -10, -20],
-        "rotation": [0, 0, 0],
+        "position": [
+          0,
+          -10,
+          -20
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
         "intersectionDelay": 100,
         "touchSoundDuration": 300,
         "collisionMode": "2d"
       }
-    },    
+    },
     {
       "id": 2,
       "type": "barcode",
       "target": 1,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "term",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 2, 37],
-        "rotation": [10, 0, 0],
-        "textureFile": "en_Man.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_term.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [55, 10, 55],
-          "textureFile": "en_Man.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "01_term_Молекула.jpg"
         }
       },
-      "audioFile": "en_Man.mp3",
+      "caption": "Дайте визначення терміну – Молекула",
+      "audioFile": "01_term_Молекула.mp3",
       "playOnControllerIntersect": true
     },
     {
       "id": 3,
       "type": "barcode",
       "target": 2,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "definition",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 2, 37],
-        "textureFile": "pt-question.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_definition.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [55, 10, 55],
-          "textureFile": "pt-pt_Homem.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "01_definition_Молекула.jpg"
         }
       },
-      "audioFile": "pt-pt_Homem.mp3",
+      "caption": "Якому терміну відповідає визначення – Найменша частинка речовини, що зберігає її хімічні властивості.",
+      "audioFile": "01_definition_Молекула.mp3",
       "playOnControllerIntersect": true
     },
     {
       "id": 4,
       "type": "barcode",
       "target": 3,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "term",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 5, 37],
-        "textureFile": "en_Woman.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_term.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [45, 10, 45],
-          "textureFile": "en_Woman.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "02_term_Атом.jpg"
         }
       },
-      "audioFile": "en_Woman.mp3",
+      "caption": "Дайте визначення терміну – Атом",
+      "audioFile": "02_term_Атом.mp3",
       "playOnControllerIntersect": true
     },
     {
       "id": 5,
       "type": "barcode",
       "target": 4,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "definition",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 5, 37],
-        "textureFile": "pt-question.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_definition.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [45, 10, 45],
-          "textureFile": "pt-pt_Mulher.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "02_definition_Атом.jpg"
         }
       },
-      "audioFile": "pt-pt_Mulher.mp3",
+      "caption": "Якому терміну відповідає визначення – Найменша частинка хімічного елемента, що зберігає його властивості.",
+      "audioFile": "02_definition_Атом.mp3",
       "playOnControllerIntersect": true
     },
     {
       "id": 6,
       "type": "barcode",
       "target": 5,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "term",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 5, 37],
-        "textureFile": "en_Dog.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_term.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [45, 10, 45],
-          "textureFile": "en_Dog.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "03_term_Фотосинтез.jpg"
         }
       },
-      "audioFile": "en_Dog.mp3",
+      "caption": "Дайте визначення терміну – Фотосинтез",
+      "audioFile": "03_term_Фотосинтез.mp3",
       "playOnControllerIntersect": true
     },
     {
       "id": 7,
       "type": "barcode",
       "target": 6,
-      "matrixSize": 30,      
+      "matrixSize": 30,
+      "role": "definition",
       "contentType": "primitive",
       "primitive": {
         "type": "BoxGeometry",
-        "size": [37, 5, 37],
-        "textureFile": "pt-question.jpg"
+        "size": [
+          37,
+          5,
+          37
+        ],
+        "textureFile": "question_definition.jpg"
       },
       "alternativeContent": {
         "contentType": "primitive",
         "primitive": {
           "type": "BoxGeometry",
-          "size": [45, 10, 45],
-          "textureFile": "pt-pt_Cão.jpg"
+          "size": [
+            45,
+            10,
+            45
+          ],
+          "textureFile": "03_definition_Фотосинтез.jpg"
         }
       },
-      "audioFile": "pt-pt_Cão.mp3",
+      "caption": "Якому терміну відповідає визначення – Утворення органічних речовин рослинами з вуглекислого газу й води під дією світла.",
+      "audioFile": "03_definition_Фотосинтез.mp3",
       "playOnControllerIntersect": true
     }
   ]
