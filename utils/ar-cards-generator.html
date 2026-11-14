@@ -191,6 +191,7 @@
                     <label for="ttsEngine">Voice engine:</label>
                     <select id="ttsEngine">
                         <option value="piper" selected>Piper — Ukrainian, in the browser, free</option>
+                        <option value="azure">Azure AI Speech — Ukrainian neural voices, your key</option>
                         <option value="voicerss">VoiceRSS — other languages, API key</option>
                     </select>
                 </div>
@@ -199,7 +200,15 @@
                     <label for="piperVoice">Voice:</label>
                     <select id="piperVoice"></select>
                 </div>
-                <div class="config-item engine-piper">
+                <!-- Azure -->
+                <div class="config-item engine-azure">
+                    <label for="azureVoice">Voice:</label>
+                    <select id="azureVoice">
+                        <option value="uk-UA-PolinaNeural">Поліна (жіночий)</option>
+                        <option value="uk-UA-OstapNeural">Остап (чоловічий)</option>
+                    </select>
+                </div>
+                <div class="config-item engine-piper engine-azure">
                     <label for="piperRate">Speed:</label>
                     <select id="piperRate">
                         <option value="0.8">Slower</option>
@@ -217,6 +226,32 @@
                     <select id="voiceLanguage"></select>
                 </div>
             </div>
+            <div class="config-row engine-azure">
+                <div class="config-item" style="flex: 1; min-width: 240px;">
+                    <label for="azureKey">Azure Speech key:</label>
+                    <input type="password" id="azureKey" placeholder="Key 1 or Key 2 of your Speech resource" autocomplete="off">
+                </div>
+                <div class="config-item">
+                    <label for="azureRegion">Region:</label>
+                    <input type="text" id="azureRegion" value="westeurope" list="azureRegions" class="short" style="width: 160px;">
+                    <datalist id="azureRegions">
+                        <option value="westeurope"><option value="northeurope"><option value="francecentral">
+                        <option value="germanywestcentral"><option value="swedencentral"><option value="uksouth">
+                        <option value="polandcentral"><option value="eastus"><option value="westus2">
+                    </datalist>
+                </div>
+                <div class="config-item" style="justify-content: flex-end;">
+                    <label style="margin-bottom: 12px;">
+                        <input type="checkbox" id="azureRemember" style="width: auto;"> Remember the key in this browser
+                    </label>
+                </div>
+            </div>
+            <p class="hint engine-azure">
+                🔑 Azure portal → create a <b>Speech</b> resource (free tier F0: 0.5 million characters per month, enough for dozens of card sets)
+                → <i>Keys and Endpoint</i> → copy <b>Key 1</b> and the <b>Location/Region</b>.
+                The key is sent only to Microsoft's speech service from this page; it is not put into the bundle or the config.
+                "Remember" keeps it only in this browser.
+            </p>
             <p class="hint engine-piper">
                 🗣️ Piper voices run on this computer (open-source models from
                 <a href="https://huggingface.co/rhasspy/piper-voices" target="_blank">rhasspy/piper-voices</a>).
@@ -529,10 +564,93 @@
             return $('ttsEngine').value;
         }
 
+        // Elements marked with engine-<name> classes are shown only for those engines
         function updateEngineFields() {
             const engine = getEngine();
-            document.querySelectorAll('.engine-piper').forEach(el => el.style.display = engine === 'piper' ? '' : 'none');
-            document.querySelectorAll('.engine-voicerss').forEach(el => el.style.display = engine === 'voicerss' ? '' : 'none');
+            document.querySelectorAll('.engine-piper, .engine-azure, .engine-voicerss').forEach(el => {
+                el.style.display = el.classList.contains(`engine-${engine}`) ? '' : 'none';
+            });
+        }
+
+        // ---------- Azure AI Speech ----------
+        // REST API: https://learn.microsoft.com/azure/ai-services/speech-service/rest-text-to-speech
+        // Called straight from the page (the service allows browser requests); the key never leaves this page
+        // except in the request to Microsoft.
+        const AZURE_KEY_STORAGE = 'arFlashcards.azureSpeech';
+
+        function escapeXml(text) {
+            return String(text).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+        }
+
+        async function fetchAzureSpeech(text, { key, region, voice, rate }) {
+            if (!key) throw new Error('Enter your Azure Speech key.');
+            if (!/^[a-z0-9-]+$/i.test(region || '')) throw new Error('Enter the Azure region, e.g. westeurope.');
+            const lang = voice.split('-').slice(0, 2).join('-');
+            const body = escapeXml(text);
+            const ratePercent = Math.round(((rate || 1) - 1) * 100);
+            const content = ratePercent ? `<prosody rate="${ratePercent > 0 ? '+' : ''}${ratePercent}%">${body}</prosody>` : body;
+            const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${lang}">` +
+                `<voice name="${voice}">${content}</voice></speak>`;
+
+            for (let attempt = 0; ; attempt++) {
+                let response;
+                try {
+                    response = await fetch(`https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+                        method: 'POST',
+                        headers: {
+                            'Ocp-Apim-Subscription-Key': key,
+                            'Content-Type': 'application/ssml+xml',
+                            'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3'
+                        },
+                        body: ssml
+                    });
+                } catch (e) {
+                    throw new Error(`Could not reach the Azure region "${region}" — check the region name.`);
+                }
+                if (response.ok) return new Blob([await response.arrayBuffer()], { type: 'audio/mpeg' });
+                // Free tier allows a limited number of requests per second: wait and retry
+                if (response.status === 429 && attempt < 4) {
+                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                    continue;
+                }
+                if (response.status === 401) throw new Error('Azure rejected the key (401) — check the key and that the region matches the resource.');
+                if (response.status === 403) throw new Error('Azure denied access (403) — the free quota may be used up for this month.');
+                if (response.status === 429) throw new Error('Too many requests to Azure (429) — try again in a minute.');
+                throw new Error(`Azure error ${response.status}`);
+            }
+        }
+
+        function azureSettings() {
+            return {
+                key: $('azureKey').value.trim(),
+                region: $('azureRegion').value.trim().toLowerCase(),
+                voice: $('azureVoice').value,
+                rate: parseFloat($('piperRate').value) || 1
+            };
+        }
+
+        // "Remember the key": localStorage of this browser only (may be unavailable in private mode)
+        function saveAzureSettings() {
+            try {
+                if ($('azureRemember').checked) {
+                    const { key, region, voice } = azureSettings();
+                    localStorage.setItem(AZURE_KEY_STORAGE, JSON.stringify({ key, region, voice }));
+                } else {
+                    localStorage.removeItem(AZURE_KEY_STORAGE);
+                }
+            } catch (e) { /* storage unavailable */ }
+        }
+
+        function loadAzureSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(AZURE_KEY_STORAGE) || 'null');
+                if (saved) {
+                    $('azureKey').value = saved.key || '';
+                    if (saved.region) $('azureRegion').value = saved.region;
+                    if (saved.voice) $('azureVoice').value = saved.voice;
+                    $('azureRemember').checked = true;
+                }
+            } catch (e) { /* storage unavailable */ }
         }
 
         // Piper module is an ES module (utils/piper-tts.js) that sets window.PiperTTS when loaded
@@ -573,6 +691,9 @@
                     onProgress: onDownload
                 });
             }
+            if (getEngine() === 'azure') {
+                return fetchAzureSpeech(text, azureSettings());
+            }
             const apiKey = $('apiKeyInput').value.trim();
             if (!apiKey) throw new Error('Enter your VoiceRSS API key.');
             return fetchVoiceRSS(text, $('voiceLanguage').value, apiKey);
@@ -582,6 +703,9 @@
             if (getEngine() === 'piper') {
                 const voice = (window.PiperTTS ? window.PiperTTS.VOICES : []).find(v => v.id === $('piperVoice').value);
                 return `Piper: ${voice ? voice.label : $('piperVoice').value}`;
+            }
+            if (getEngine() === 'azure') {
+                return `Azure: ${$('azureVoice').value}`;
             }
             return `VoiceRSS: ${$('voiceLanguage').value}`;
         }
@@ -594,6 +718,7 @@
             }
             showStatus('audioStatus', [['ok', '⏳ Preparing the voice…']]);
             try {
+                if (getEngine() === 'azure') saveAzureSettings();
                 const spoken = ARConfig.spokenText(getPrompts().term, term);
                 const blob = await synthesizeOne(spoken, piperDownloadProgress());
                 setProgress('audioProgress', 0, 0);
@@ -630,6 +755,13 @@
                 showStatus('audioStatus', [['error', '❌ Enter your VoiceRSS API key.']]);
                 return;
             }
+            if (getEngine() === 'azure') {
+                if (!$('azureKey').value.trim()) {
+                    showStatus('audioStatus', [['error', '❌ Enter your Azure Speech key.']]);
+                    return;
+                }
+                saveAzureSettings();
+            }
             const prompts = getPrompts();
             const jobs = [];
             pairs.forEach(p => {
@@ -639,6 +771,8 @@
             });
 
             const errors = [];
+            let done = 0;
+            let stoppedBy = null;
             for (let i = 0; i < jobs.length; i++) {
                 showStatus('audioStatus', [['ok', `⏳ ${i + 1} / ${jobs.length}: ${jobs[i].name}`]]);
                 try {
@@ -646,16 +780,24 @@
                     const old = media.get(jobs[i].name);
                     if (old && old.url) URL.revokeObjectURL(old.url);
                     media.set(jobs[i].name, { kind: 'audio', data: blob });
+                    done++;
                 } catch (e) {
+                    // A wrong key/region fails every request the same way — stop instead of repeating it
+                    if (/\(40[13]\)|region/.test(e.message)) {
+                        stoppedBy = e.message;
+                        break;
+                    }
                     errors.push(`${jobs[i].name}: ${e.message}`);
                 }
                 setProgress('audioProgress', i + 1, jobs.length);
-                // VoiceRSS has a rate limit; Piper just needs the page to stay responsive
-                await new Promise(r => setTimeout(r, getEngine() === 'voicerss' ? 250 : 0));
+                // VoiceRSS and the Azure free tier have rate limits; Piper just needs the page to stay responsive
+                const pause = { voicerss: 250, azure: 120 }[getEngine()] || 0;
+                await new Promise(r => setTimeout(r, pause));
             }
             setTimeout(() => setProgress('audioProgress', 0, 0), 600);
             if (getEngine() === 'piper') fillPiperVoices();
-            const lines = [['ok', `✅ ${jobs.length - errors.length} of ${jobs.length} audio files (${voiceDescription()}).`]];
+            const lines = [[done ? 'ok' : 'error', `${done ? '✅' : '❌'} ${done} of ${jobs.length} audio files (${voiceDescription()}).`]];
+            if (stoppedBy) lines.push(['error', `❌ Stopped: ${stoppedBy}`]);
             errors.slice(0, 5).forEach(e => lines.push(['error', `❌ ${e}`]));
             showStatus('audioStatus', lines);
             renderPairs();
@@ -800,6 +942,8 @@
             ARConfig.renderSettingsForm($('arConfigSettings'));
 
             $('ttsEngine').addEventListener('change', updateEngineFields);
+            loadAzureSettings();
+            $('azureRemember').addEventListener('change', saveAzureSettings);
             updateEngineFields();
             fillPiperVoices().catch(e => showStatus('audioStatus', [['error', `❌ ${e.message}`]]));
 
