@@ -1,32 +1,32 @@
 {
   "version": 3,
   "kind": "term-definition",
-  "generatedAt": "2026-11-16T21:50:16.062Z",
+  "generatedAt": "2026-11-16T22:40:07.933Z",
   "cards": [
     {
       "key": "01",
       "term": {
-        "text": "Молекула",
-        "image": "01_term_Молекула.jpg",
-        "audio": "01_term_Молекула.mp3"
+        "text": "Атом",
+        "image": "01_term_Атом.jpg",
+        "audio": "01_term_Атом.mp3"
       },
       "definition": {
-        "text": "Найменша частинка речовини, що зберігає її хімічні властивості.",
-        "image": "01_definition_Молекула.jpg",
-        "audio": "01_definition_Молекула.mp3"
+        "text": "Найменша частинка хімічного елемента, що зберігає його властивості.",
+        "image": "01_definition_Атом.jpg",
+        "audio": "01_definition_Атом.mp3"
       }
     },
     {
       "key": "02",
       "term": {
-        "text": "Атом",
-        "image": "02_term_Атом.jpg",
-        "audio": "02_term_Атом.mp3"
+        "text": "Молекула",
+        "image": "02_term_Молекула.jpg",
+        "audio": "02_term_Молекула.mp3"
       },
       "definition": {
-        "text": "Найменша частинка хімічного елемента, що зберігає його властивості.",
-        "image": "02_definition_Атом.jpg",
-        "audio": "02_definition_Атом.mp3"
+        "text": "Найменша частинка речовини, що зберігає її хімічні властивості.",
+        "image": "02_definition_Молекула.jpg",
+        "audio": "02_definition_Молекула.mp3"
       }
     },
     {
@@ -43,7 +43,7 @@
       }
     }
   ],
-  "voice": "Piper: Олекса (чоловічий) · high · рекомендовано",
+  "voice": "Azure: uk-UA-PolinaNeural",
   "prompts": {
     "term": "Дайте визначення терміну",
     "definition": "Якому терміну відповідає визначення"

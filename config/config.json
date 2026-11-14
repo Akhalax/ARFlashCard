@@ -64,11 +64,11 @@
             10,
             45
           ],
-          "textureFile": "01_term_Молекула.jpg"
+          "textureFile": "01_term_Атом.jpg"
         }
       },
-      "caption": "Дайте визначення терміну – Молекула",
-      "audioFile": "01_term_Молекула.mp3",
+      "caption": "Дайте визначення терміну – Атом",
+      "audioFile": "01_term_Атом.mp3",
       "playOnControllerIntersect": true
     },
     {
@@ -96,11 +96,11 @@
             10,
             45
           ],
-          "textureFile": "01_definition_Молекула.jpg"
+          "textureFile": "01_definition_Атом.jpg"
         }
       },
-      "caption": "Якому терміну відповідає визначення – Найменша частинка речовини, що зберігає її хімічні властивості.",
-      "audioFile": "01_definition_Молекула.mp3",
+      "caption": "Якому терміну відповідає визначення – Найменша частинка хімічного елемента, що зберігає його властивості.",
+      "audioFile": "01_definition_Атом.mp3",
       "playOnControllerIntersect": true
     },
     {
@@ -128,11 +128,11 @@
             10,
             45
           ],
-          "textureFile": "02_term_Атом.jpg"
+          "textureFile": "02_term_Молекула.jpg"
         }
       },
-      "caption": "Дайте визначення терміну – Атом",
-      "audioFile": "02_term_Атом.mp3",
+      "caption": "Дайте визначення терміну – Молекула",
+      "audioFile": "02_term_Молекула.mp3",
       "playOnControllerIntersect": true
     },
     {
@@ -160,11 +160,11 @@
             10,
             45
           ],
-          "textureFile": "02_definition_Атом.jpg"
+          "textureFile": "02_definition_Молекула.jpg"
         }
       },
-      "caption": "Якому терміну відповідає визначення – Найменша частинка хімічного елемента, що зберігає його властивості.",
-      "audioFile": "02_definition_Атом.mp3",
+      "caption": "Якому терміну відповідає визначення – Найменша частинка речовини, що зберігає її хімічні властивості.",
+      "audioFile": "02_definition_Молекула.mp3",
       "playOnControllerIntersect": true
     },
     {
